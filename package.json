@@ -1,0 +1,26 @@
+{
+  "name": "webciv",
+  "version": "0.0.1",
+  "license": "MIT",
+  "engines": { "node": ">=4" },
+
+  "description": "A Strategy Game Engine in JavaScript (KEEP PRIVATE, DON'T RELEASE ON NPM YET).",
+  "private": trie,
+
+  "homepage": "https://github.com/kobalicek/webciv",
+  "bugs": {
+    "url": "https://github.com/kobalicek/webciv/issues"
+  },
+
+  "contributors": [
+    "Petr Kobalicek <kobalicek.petr@gmail.com> (kobalicek.com)"
+  ],
+
+  "main": "server.js",
+  "dependencies": { "express": "*" },
+
+  "repository" : {
+    "type": "git",
+    "url": "https://github.com/kobalicek/webciv.git"
+  }
+}

@@ -1,0 +1,140 @@
+<!DOCTYPE HTML>
+<html lang="en">
+
+<head>
+<title>WebCiv</title>
+
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="WebCiv" />
+<meta property="og:title" content="WebCiv" />
+<meta property="og:description" content="A Strategy Game Engine in JavaScript (WIP)" />
+<meta property="og:url" content="http://kobalicek.com/webciv/" />
+<meta property="og:image" content="http://kobalicek.com/webciv/assets/webciv-thumb.jpeg" />
+
+<link rel="icon" type="image/png" href="./assets/webciv-favicon.png" />
+<link rel="stylesheet" type="text/css" href="./assets/webciv.css" />
+
+<script src="./engine/webciv-core.js"></script>
+<script src="./engine/webciv-defs.js"></script>
+<script src="./engine/webciv-mapgen.js"></script>
+
+<script src="./engine/webciv-ui.js"></script>
+<script src="./engine/webciv-render.js"></script>
+</head>
+
+<body>
+<div id="Body">
+  <div id="Main">
+    <canvas id="Canvas"></canvas>
+  </div>
+  <div id="Bottom">
+    <div id="Debug">DEBUG AREA</div>
+    <div id="Control">Use MIDDLE button to scroll; LEFT button changes ground terrain, RIGHT button changes terrain to water.</div>
+  </div>
+</div>
+<div id="Loader">
+  <div id="Loader-Inner">
+    <div id="Loader-Message"></div>
+  </div>
+</div>
+
+<script>
+(function(webciv) {
+  "use strict";
+
+  const defs = new webciv.GameDefs(webciv.defs).finalize();
+  const store = new webciv.render.AssetStore({
+    baseUrl: "./assets",
+    slowLoadingTimeout: 300
+  });
+
+  const loading = {
+    box: document.getElementById("Loader"),
+    msg: document.getElementById("Loader-Message")
+  };
+
+  // Show some progress if assets didn't load in a specified time.
+  function updateProgress() {
+    loading.box.style.display = "block";
+    loading.msg.innerText = `Loaded ${store.loadedCount} / ${store.loadedCount + store.queuedCount}`;
+  }
+
+  store.on("slowLoading", updateProgress);
+  store.on("asset", updateProgress);
+
+  store.on("error", function(asset) {
+    loading.box.style.display = "block";
+    loading.msg.innerText = `Asset ${asset.name} failed to load`;
+  });
+
+  store.on("complete", function() {
+    if (store.failedCount === 0)
+      loading.box.style.display = "none";
+
+    const assets = defs.assets;
+    const RenderUtils = webciv.render.RenderUtils;
+
+    // TODO: Temporary, renderer testing - THIS NEEDS CLEANUP!
+    store.update(assets.byName("Units").id,
+      RenderUtils.colorizeMulti(store.images[assets.byName("Units").id], webciv.defs.colors));
+
+    store.update(assets.byName("BlendMap.Coast").id,
+      RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Coast").id], webciv.render.TerrainTransitions.PRE, true));
+
+    store.update(assets.byName("BlendMap.Terrain").id,
+      RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Terrain").id], webciv.render.TerrainTransitions.PRE, false));
+
+    store.update(assets.byName("BlendMap.Terrain.2").id,
+      RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Terrain.2").id], webciv.render.TerrainTransitions.PRE, false));
+
+    store.update(assets.byName("BlendMap.Territory").id,
+      RenderUtils.generateTerritoryTransitions(webciv.render.TerritoryTransitions.PRE, webciv.defs.colors));
+
+    store.update(assets.byName("BlendMap.CoastLine").id,
+      RenderUtils.generateSurroundings(store.images[assets.byName("BlendMap.Coast").id], {
+        invert: true,
+        square: 32,
+        radius: 4,
+        iterations: 2,
+        scale: 3.2
+      }));
+
+    store.update(assets.byName("BlendMap.RiverCoast").id,
+      RenderUtils.generateSurroundings(store.images[assets.byName("Misc").id], {
+        invert: false,
+        square: 32,
+        radius: 3,
+        iterations: 2,
+        scale: 3.5
+      }));
+
+    const game = new webciv.Game(defs);
+    const renderer = new webciv.render.Renderer(document.getElementById("Canvas"));
+
+    const ui = new webciv.ui.CivUI();
+    ui.setDebugElement(document.getElementById("Debug"));
+    ui.setControlElement(document.getElementById("Control"));
+
+    game.setUI(ui);
+    game.setRenderer(renderer);
+    game.setAssetStore(store);
+
+    game.createMap(64, 48);
+    game.generateMap({
+      generator: "simple",
+      landSize: 22,
+      landMass: 800
+    });
+    game.generateResources({});
+    game.generatePlayers(10);
+
+    game.renderer.render();
+  });
+
+  store.add(defs.assets);
+})(this.webciv);
+</script>
+
+</body>
+</html>

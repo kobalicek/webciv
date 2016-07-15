@@ -1,0 +1,94 @@
+html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code, del, dfn, em, img, ins, kbd, q, s, samp, small,
+strike, strong, sub, sup, tt, var, b, u, i, center, dl, dt, dd, ol, ul, li, fieldset, form,
+label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, canvas, hr,
+details, embed, figure, figcaption, footer, header, hgroup, menu, nav, output, ruby, section,
+summary, time, mark, audio, video {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 100%;
+  font: inherit;
+}
+
+article, aside, details, figcaption, figure, footer, header, hgroup, menu, nav, section {
+  display: block;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-image: url("./bg.png");
+  background-repeat: repeat;
+  color: #FFF;
+  min-width: 800px;
+  min-height: 600px;
+}
+
+#Body {
+  position: absolute; top: 0px; left: 0px;
+  display: flex;
+  flex-flow: column nowrap;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid #000;
+}
+
+#Main {
+  flex-grow: 1;
+  overflow: hidden;
+  line-height: 0;
+  background: #000;
+}
+
+#Canvas {
+  position: relative; top: 0px; left: 0px;
+  user-select: none;
+}
+
+#Bottom {
+  display: flex;
+  flex-flow: row nowrap;
+  height: 200px;
+  overflow: hidden;
+  border-top: 1px solid #000;
+}
+
+#Debug {
+  padding: 5px;
+  width: 240px;
+  border-top: none;
+  overflow: auto;
+  border-right: 1px solid #000;
+}
+
+#Control {
+  padding: 5px;
+}
+
+#Loader {
+  display: none;
+  position: absolute; left: 0; top:0; bottom: 0; right: 0;
+
+  width: 200px;
+  height: 32px;
+
+  border: 1px solid #FFF;
+  background: #000;
+  color: #FFF;
+  margin: auto;
+  overflow: hidden;
+  text-align: center;
+}
+
+#Loader-Inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+}
+#Loader-Msg {}
