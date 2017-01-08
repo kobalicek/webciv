@@ -5,7 +5,7 @@
   "engines": { "node": ">=4" },
 
   "description": "A Strategy Game Engine in JavaScript (KEEP PRIVATE, DON'T RELEASE ON NPM YET).",
-  "private": trie,
+  "private": true,
 
   "homepage": "https://github.com/kobalicek/webciv",
   "bugs": {

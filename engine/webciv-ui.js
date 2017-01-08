@@ -45,6 +45,8 @@ class CivUI {
   constructor() {
     this.game = null;
 
+    this.animationFramePending = false;
+
     this.dirty = false;
     this.dirtyMessageId = "WebCiv$Update$" + (+Date());
     this.renderer = null;
@@ -54,10 +56,8 @@ class CivUI {
 
     this.captured = false;
 
-    this.activeTile = {
-      x: -1,
-      y: -1
-    };
+    this.activeTile = { x: -1, y: -1 };
+    this.hoverTile  = { x: -1, y: -1 };
 
     this.mouseScroll = {
       active: false,
@@ -69,15 +69,17 @@ class CivUI {
 
     // DOM events - we need to bind them here so we can easily remove them.
     this.onWindowResize = this.onWindowResize.bind(this);
-    this.onContextMenu = this.onContextMenu.bind(this);
+    this.onContextMenu  = this.onContextMenu.bind(this);
 
-    this.onMouseEnter = this.onMouseEnter.bind(this);
-    this.onMouseLeave = this.onMouseLeave.bind(this);
-    this.onMouseDown = this.onMouseDown.bind(this);
-    this.onMouseUp = this.onMouseUp.bind(this);
-    this.onMouseMove = this.onMouseMove.bind(this);
-    this.onClick = this.onClick.bind(this);
-    this.onRender = this.onRender.bind(this);
+    this.onMouseEnter   = this.onMouseEnter.bind(this);
+    this.onMouseLeave   = this.onMouseLeave.bind(this);
+    this.onMouseDown    = this.onMouseDown.bind(this);
+    this.onMouseUp      = this.onMouseUp.bind(this);
+    this.onMouseMove    = this.onMouseMove.bind(this);
+    this.onClick        = this.onClick.bind(this);
+    this.onKeyDown      = this.onKeyDown.bind(this);
+    this.onKeyUp        = this.onKeyUp.bind(this);
+    this.onRender       = this.onRender.bind(this);
   }
 
   setControlElement(element) { this.controlElement = element; }
@@ -90,14 +92,21 @@ class CivUI {
     if (game === null || renderer === null)
       return null;
 
-    return game.map.getTile(
+    return game.map.getTileSafe(
       Math.floor((renderer.worldX + pixX) / renderer.tileSize),
       Math.floor((renderer.worldY + pixY) / renderer.tileSize));
   }
 
   makeDirty() {
     if (this.dirty !== true) {
+      this.requestAnimationFrame();
       this.dirty = true;
+    }
+  }
+
+  requestAnimationFrame() {
+    if (!this.animationFramePending) {
+      this.animationFramePending = true;
       window.requestAnimationFrame(this.onRender);
     }
   }
@@ -107,15 +116,11 @@ class CivUI {
     const w = e.clientWidth;
     const h = e.clientHeight;
 
-    const element = this.renderer.element;
-    element.width = w;
-    element.height = h;
-
     this.renderer.updateCanvasSize(w, h);
     this.makeDirty();
   }
 
-  updateActiveTile(tile) {
+  updateHoverTile(tile) {
     var x = -1;
     var y = -1;
 
@@ -124,10 +129,10 @@ class CivUI {
       y = tile.y;
     }
 
-    if (x !== this.activeTile.x || y !== this.activeTile.y) {
-      this.activeTile.x = x;
-      this.activeTile.y = y;
-      // this.makeDirty();
+    const hoverTile = this.hoverTile;
+    if (x !== hoverTile.x || y !== hoverTile.y) {
+      hoverTile.x = x;
+      hoverTile.y = y;
 
       if (this.debugElement) {
         var debug = `Location: [${x}, ${y}]<br/>`;
@@ -162,6 +167,8 @@ class CivUI {
         }
         this.debugElement.innerHTML = debug;
       }
+
+      this.makeDirty();
     }
   }
 
@@ -172,8 +179,8 @@ class CivUI {
   captureMouse() {
     this.captured = true;
 
-    const element = this.renderer.element;
-    element.removeEventListener("mousemove", this.onMouseMove, true);
+    const container = this.renderer.container;
+    container.removeEventListener("mousemove", this.onMouseMove, true);
 
     window.addEventListener("mousemove", this.onMouseMove, true);
     window.addEventListener("mouseup"  , this.onMouseUp  , true);
@@ -185,8 +192,8 @@ class CivUI {
       window.removeEventListener("mousemove", this.onMouseMove, true);
       window.removeEventListener("mouseup"  , this.onMouseUp  , true);
 
-      const element = this.renderer.element;
-      element.addEventListener("mousemove", this.onMouseMove, true);
+      const container = this.renderer.container;
+      container.addEventListener("mousemove", this.onMouseMove, true);
     }
   }
 
@@ -197,6 +204,7 @@ class CivUI {
   onAttach(game) {
     this.game = game;
 
+    this.game.on("uncovered"       , this.onUncovered       , this);
     this.game.on("rendererAttached", this.onRendererAttached, this);
     this.game.on("rendererDetached", this.onRendererDetached, this);
 
@@ -209,6 +217,7 @@ class CivUI {
     if (game.renderer !== null)
       this.onRendererDetached(game.renderer);
 
+    this.game.off("uncovered"       , this.onUncovered       , this);
     this.game.off("rendererAttached", this.onRendererAttached, this);
     this.game.off("rendererDetached", this.onRendererDetached, this);
 
@@ -223,15 +232,17 @@ class CivUI {
     this.renderer = renderer;
 
     window.addEventListener("resize", this.onWindowResize, true);
+    window.addEventListener("keydown", this.onKeyDown, true);
+    window.addEventListener("keyup", this.onKeyUp, true);
 
-    const element = renderer.element;
-    element.addEventListener("contextmenu", this.onContextMenu, true);
-    element.addEventListener("mouseenter", this.onMouseEnter, true);
-    element.addEventListener("mouseleave", this.onMouseLeave, true);
+    const container = renderer.container;
+    container.addEventListener("contextmenu", this.onContextMenu, true);
+    container.addEventListener("mouseenter", this.onMouseEnter, true);
+    container.addEventListener("mouseleave", this.onMouseLeave, true);
 
-    element.addEventListener("mousedown", this.onMouseDown, false);
-    element.addEventListener("mousemove", this.onMouseMove, true);
-    element.addEventListener("click", this.onClick, true);
+    container.addEventListener("mousedown", this.onMouseDown, false);
+    container.addEventListener("mousemove", this.onMouseMove, true);
+    container.addEventListener("click", this.onClick, true);
 
     this.updateCanvasSize();
     UIHacks.init();
@@ -239,22 +250,38 @@ class CivUI {
 
   onRendererDetached() {
     const renderer = this.renderer;
-    const element = renderer.element;
+    const container = renderer.container;
 
     this.releaseMouse();
     this.renderer = null;
 
     window.removeEventListener("resize", this.onWindowResize, true);
+    window.removeEventListener("keydown", this.onKeyDown, true);
+    window.removeEventListener("keyup", this.onKeyUp, true);
 
-    element.removeEventListener("contextmenu", this.onContextMenu, true);
-    element.removeEventListener("mouseenter", this.onMouseEnter, true);
-    element.removeEventListener("mouseleave", this.onMouseLeave, true);
+    container.removeEventListener("contextmenu", this.onContextMenu, true);
+    container.removeEventListener("mouseenter", this.onMouseEnter, true);
+    container.removeEventListener("mouseleave", this.onMouseLeave, true);
 
-    element.removeEventListener("mousedown", this.onMouseDown, false);
-    element.removeEventListener("mousemove", this.onMouseMove, true);
-    element.removeEventListener("click", this.onClick, true);
+    container.removeEventListener("mousedown", this.onMouseDown, false);
+    container.removeEventListener("mousemove", this.onMouseMove, true);
+    container.removeEventListener("click", this.onClick, true);
 
     UIHacks.free();
+  }
+
+  // --------------------------------------------------------------------------
+  // [onUncovered]
+  // --------------------------------------------------------------------------
+
+  onUncovered(x, y, player) {
+    const renderer = this.renderer;
+    if (renderer) {
+      if (player.slot === renderer._playerId) {
+        renderer.invalidateTile(x, y);
+        this.makeDirty();
+      }
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -284,7 +311,7 @@ class CivUI {
 
   onMouseLeave(event) {
     if (!this.captured)
-      this.updateActiveTile(null);
+      this.updateHoverTile(null);
   }
 
   onMouseDown(event) {
@@ -293,52 +320,14 @@ class CivUI {
     event.stopPropagation();
 
     if (event.button === 0) {
-      if (this.activeTile.x !== -1) {
-        const map = this.game.map;
-        const tile = map.getTile(this.activeTile.x, this.activeTile.y);
-        if (tile.id === TerrainType.Ocean) {
-          tile.id = TerrainType.Grassland;
-        }
-        else {
-          if (tile.id === TerrainType.Grassland)
-            tile.id = TerrainType.Plains;
-          else if (tile.id === TerrainType.Plains)
-            tile.id = TerrainType.Desert;
-          else if (tile.id === TerrainType.Desert)
-            tile.id = TerrainType.Tundra;
-          else if (tile.id === TerrainType.Tundra)
-            tile.id = TerrainType.Arctic;
-          else
-            tile.id = TerrainType.Grassland;
-        }
-        this.game.emit("invalidateTile", tile.x, tile.y);
-        this.makeDirty();
-      }
-    }
-    else if (event.button === 2) {
-      if (this.activeTile.x !== -1) {
-        const map = this.game.map;
-        const tile = map.getTile(this.activeTile.x, this.activeTile.y);
-        if (tile.id !== TerrainType.Ocean) {
-          tile.id = TerrainType.Ocean;
-          tile.modifiers &= ~(TerrainModifier.kRoad | TerrainModifier.kIrrigation | TerrainModifier.kRiver);
-          //tile.modifiers |= TerrainModifier.kIrrigation;
-        }
-
-        // tile.id = TerrainType.Grassland;
-        this.game.emit("invalidateTile", tile.x, tile.y);
-        this.makeDirty();
-      }
-    }
-    else if (event.button === 1) {
       // Scrolling.
-      const ms = this.mouseScroll;
+      const scroll = this.mouseScroll;
 
-      ms.active = true;
-      ms.worldX = this.game.renderer.worldX;
-      ms.worldY = this.game.renderer.worldY;
-      ms.initialX = event.screenX;
-      ms.initialY = event.screenY;
+      scroll.active = true;
+      scroll.worldX = this.game.renderer.worldX;
+      scroll.worldY = this.game.renderer.worldY;
+      scroll.initialX = event.screenX;
+      scroll.initialY = event.screenY;
 
       this.captureMouse();
     }
@@ -349,14 +338,14 @@ class CivUI {
     event.preventDefault();
     event.stopPropagation();
 
-    if (event.button === 1) {
-      const ms = this.mouseScroll;
+    if (event.button === 0) {
+      const scroll = this.mouseScroll;
 
-      ms.active = false;
-      ms.worldX = -1;
-      ms.worldY = -1;
-      ms.initialX = -1;
-      ms.initialX = -1;
+      scroll.active = false;
+      scroll.worldX = -1;
+      scroll.worldY = -1;
+      scroll.initialX = -1;
+      scroll.initialX = -1;
 
       this.releaseMouse();
     }
@@ -364,17 +353,17 @@ class CivUI {
 
   onMouseMove(event) {
     const game = this.game;
-    const ms = this.mouseScroll;
+    const scroll = this.mouseScroll;
 
-    if (ms.active) {
+    if (scroll.active) {
       // Mouse scroll.
       const renderer = game.renderer;
 
-      const dx = event.screenX - ms.initialX;
-      const dy = event.screenY - ms.initialY;
+      const dx = event.screenX - scroll.initialX;
+      const dy = event.screenY - scroll.initialY;
 
-      const wx = GameUtils.repeat(ms.worldX - dx, renderer.worldW);
-      const wy = GameUtils.repeat(ms.worldY - dy, renderer.worldH);
+      const wx = GameUtils.repeat(scroll.worldX - dx, renderer.worldW);
+      const wy = GameUtils.repeat(scroll.worldY - dy, renderer.worldH);
 
       renderer.worldX = wx;
       renderer.worldY = wy;
@@ -389,7 +378,7 @@ class CivUI {
 
   onMouseOver(event) {
     const tile = this.getTileAt(event.clientX, event.clientY);
-    this.updateActiveTile(tile);
+    this.updateHoverTile(tile);
   }
 
   onClick(event) {
@@ -399,14 +388,139 @@ class CivUI {
   }
 
   // --------------------------------------------------------------------------
+  // [OnKey...]
+  // --------------------------------------------------------------------------
+
+  onKeyDown(event) {
+    console.log(event)
+    const hoverTile = this.hoverTile;
+
+    switch (event.key) {
+      case "d":
+        this.renderer.debug = Math.floor((this.renderer.debug + 1) % 4);
+        this.renderer.invalidateAll();
+        this.makeDirty();
+        break;
+
+      case "v":
+        var id = this.renderer.playerId;
+        if (++id >= this.game.players.length)
+          id = -1;
+        this.renderer.playerId = id;
+        break;
+      
+      case "u":
+        if (hoverTile.x !== -1 && this.renderer.playerId !== -1) {
+          this.game.players[this.renderer.playerId].uncoverTile(hoverTile.x, hoverTile.y);
+
+          //this.renderer.invalidateAll();
+          //this.makeDirty();
+        }
+        break;
+
+      case "e": {
+        this.game.endOfTurn();
+        break;
+      }
+    }
+
+    if (hoverTile.x !== -1) {
+      const map = this.game.map;
+      const tile = map.getTile(hoverTile.x, hoverTile.y);
+
+      var dirty = false;
+
+      var tileId = tile.id;
+      var tileModifiers = tile.modifiers;
+
+      var addMod = 0;
+      var delMod = 0;
+      var toggleMod = 0;
+
+      switch (event.key) {
+        case "0": tileId = TerrainType.Ocean    ; break;
+        case "1": tileId = TerrainType.Desert   ; break;
+        case "2": tileId = TerrainType.Plains   ; break;
+        case "3": tileId = TerrainType.Grassland; break;
+        case "4": tileId = TerrainType.Jungle   ; tileModifiers &= ~TerrainModifier.kIrrigation; break;
+        case "5": tileId = TerrainType.Tundra   ; tileModifiers &= ~TerrainModifier.kIrrigation; break;
+        case "6": tileId = TerrainType.Arctic   ; tileModifiers &= ~TerrainModifier.kIrrigation; break;
+
+        case "c":
+          tileModifiers &= ~TerrainModifier.kRoad |
+                            TerrainModifier.kRailroad |
+                            TerrainModifier.kIrrigation;
+          break;
+
+        case "r":
+          if (tileId !== TerrainType.Ocean)
+            tileModifiers |= (tileModifiers & TerrainModifier.kRoad) ? TerrainModifier.kRailroad : TerrainModifier.kRoad;
+          break;
+
+        case "i":
+          if (tileId === TerrainType.Desert || 
+              tileId === TerrainType.Plains ||
+              tileId === TerrainType.Grassland)
+            tileModifiers ^= TerrainModifier.kIrrigation;
+          break;
+
+        case "x":
+          if (tileId !== TerrainType.Ocean)
+            tileModifiers ^= TerrainModifier.kRiver;
+          break;
+      }
+
+      if (tileId == TerrainType.Ocean) {
+        tileModifiers &= ~(TerrainModifier.kRiver     |
+                           TerrainModifier.kRoad      |
+                           TerrainModifier.kRailroad  |
+                           TerrainModifier.kIrrigation);
+      }
+
+      map.setTileIdAndModifiers(tile.x, tile.y, tileId, tileModifiers);
+    }
+  }
+
+  onKeyUp(event) {
+
+  }
+
+  // --------------------------------------------------------------------------
   // [OnRender]
   // --------------------------------------------------------------------------
 
   onRender() {
+    var dirty = this.dirty;
+
     this.dirty = false;
-    if (this.renderer === null)
-      return;
-    this.renderer.render();
+    this.animationFramePending = false;
+
+    if (this.renderer && dirty) {
+      this.renderer.render();
+      this.renderOverlay();
+    }
+
+    if (dirty)
+      this.requestAnimationFrame();
+  }
+
+  renderOverlay() {
+    var ctx = this.renderer.overlayCanvas.getContext("2d");
+    ctx.clearRect(0, 0, this.renderer.sceneW, this.renderer.sceneH);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.33)";
+
+    const x = this.hoverTile.x;
+    const y = this.hoverTile.y;
+
+    if (x !== -1) {
+      var dx = x * 32 - this.renderer.worldX;
+      var dy = y * 32 - this.renderer.worldY;
+
+      if (dx <= -32) dx += this.renderer.worldW;
+      if (dy <= -32) dy += this.renderer.worldH;
+
+      ctx.fillRect(dx, dy, 32, 32);
+    }
   }
 }
 ui.CivUI = CivUI;

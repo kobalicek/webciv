@@ -18,19 +18,30 @@
 <script src="./engine/webciv-core.js"></script>
 <script src="./engine/webciv-defs.js"></script>
 <script src="./engine/webciv-mapgen.js"></script>
+<script src="./engine/webciv-ai.js"></script>
 
+<script src="./engine/webciv-mindom.js"></script>
 <script src="./engine/webciv-ui.js"></script>
 <script src="./engine/webciv-render.js"></script>
 </head>
 
 <body>
 <div id="Body">
-  <div id="Main">
-    <canvas id="Canvas"></canvas>
-  </div>
+  <div id="Main"></div>
   <div id="Bottom">
     <div id="Debug">DEBUG AREA</div>
-    <div id="Control">Use MIDDLE button to scroll; LEFT button changes ground terrain, RIGHT button changes terrain to water.</div>
+    <div id="Control">
+      <p>Editing mode:</p>
+      <ul>
+        <li>Use '0-9' to change terrain (0 is ocean)</li>
+        <li>Use 'r' to add road and railroad</li>
+        <li>Use 'i' to add irrigaion</li>
+        <li>Use 'c' to clear all improvements</li>
+        <li>Use 'x' to toggle river</li>
+        <li>Use 'd' to show debug overlay</li>
+        <li>Use 'v' to switch player view</li>
+      </ul>
+    </div>
   </div>
 </div>
 <div id="Loader">
@@ -82,11 +93,14 @@
     store.update(assets.byName("BlendMap.Coast").id,
       RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Coast").id], webciv.render.TerrainTransitions.PRE, true));
 
-    store.update(assets.byName("BlendMap.Terrain").id,
-      RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Terrain").id], webciv.render.TerrainTransitions.PRE, false));
+    store.update(assets.byName("BlendMap.Terrain.1").id,
+      RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Terrain.1").id], webciv.render.TerrainTransitions.PRE, false));
 
     store.update(assets.byName("BlendMap.Terrain.2").id,
       RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Terrain.2").id], webciv.render.TerrainTransitions.PRE, false));
+
+    store.update(assets.byName("BlendMap.Covered").id,
+      RenderUtils.preprocessTransitions(store.images[assets.byName("BlendMap.Covered").id], webciv.render.TerrainTransitions.PRE, false));
 
     store.update(assets.byName("BlendMap.Territory").id,
       RenderUtils.generateTerritoryTransitions(webciv.render.TerritoryTransitions.PRE, webciv.defs.colors));
@@ -95,9 +109,9 @@
       RenderUtils.generateSurroundings(store.images[assets.byName("BlendMap.Coast").id], {
         invert: true,
         square: 32,
-        radius: 4,
+        radius: 2,
         iterations: 2,
-        scale: 3.2
+        scale: 2.8
       }));
 
     store.update(assets.byName("BlendMap.RiverCoast").id,
@@ -110,7 +124,7 @@
       }));
 
     const game = new webciv.Game(defs);
-    const renderer = new webciv.render.Renderer(document.getElementById("Canvas"));
+    const renderer = new webciv.render.Renderer(document.getElementById("Main"));
 
     const ui = new webciv.ui.CivUI();
     ui.setDebugElement(document.getElementById("Debug"));
@@ -127,7 +141,7 @@
       landMass: 800
     });
     game.generateResources({});
-    game.generatePlayers(10);
+    game.generatePlayers(13);
 
     game.renderer.render();
   });

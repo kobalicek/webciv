@@ -37,15 +37,12 @@ body {
 }
 
 #Main {
+  padding: 0;
+  margin: 0;
+  line-height: 0;
   flex-grow: 1;
   overflow: hidden;
-  line-height: 0;
   background: #000;
-}
-
-#Canvas {
-  position: relative; top: 0px; left: 0px;
-  user-select: none;
 }
 
 #Bottom {

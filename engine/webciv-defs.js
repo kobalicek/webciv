@@ -27,29 +27,19 @@ const TerrainModifier = core.TerrainModifier;
 //   "@[Technology]"   - Link to a technology      - "@[The Wheel]"
 //   "~[Civilization]" - Link to a civilization    - "~[Aztecs]"
 
-defs.colors = [
-  { primary: "#F0F0F0", secondary: "#8A8A8E" },
-  { primary: "#61E365", secondary: "#2C7900" },
-  { primary: "#7B91FF", secondary: "#354AB7" },
-  { primary: "#FFFF96", secondary: "#61E365" },
-  { primary: "#FF55FF", secondary: "#822014" },
-  { primary: "#0CE3EB", secondary: "#00AAAA" },
-  { primary: "#8A8A8E", secondary: "#4D4D4D" },
-  { primary: "#E3AC61", secondary: "#791400" },
-  { primary: "#AC61E3", secondary: "#000479" },
-  { primary: "#863D38", secondary: "#3A0E1C" }
-];
-
 defs.assets = [
-  { name: "Texture.Ocean"      , file: "terrain-ocean.png"     , type: "Terrain" , dominance: 1 },
-  { name: "Texture.Grassland"  , file: "terrain-grassland.png" , type: "Terrain" , dominance: 2, blendmap: "_[BlendMap.Terrain.2]"   },
-  { name: "Texture.Plains"     , file: "terrain-plains.png"    , type: "Terrain" , dominance: 3, blendmap: "_[BlendMap.Terrain.2]" },
-  { name: "Texture.Desert"     , file: "terrain-desert.png"    , type: "Terrain" , dominance: 1, blendmap: "_[BlendMap.Terrain.2]" },
-  { name: "Texture.Tundra"     , file: "terrain-tundra.png"    , type: "Terrain" , dominance: 4, blendmap: "_[BlendMap.Terrain.2]"   },
-  { name: "Texture.Arctic"     , file: "terrain-arctic.png"    , type: "Terrain" , dominance: 5, blendmap: "_[BlendMap.Terrain.2]" },
-  { name: "Texture.Coast"      , file: "terrain-arctic.png"    , type: "Terrain"  },
+  { name: "Texture.Covered"    , file: "texture-covered.png"   , type: "Other"    },
+  { name: "Texture.Ocean"      , file: "terrain-ocean.png"     , type: "Terrain" , dominance: 1, blendmap: "_[BlendMap.Terrain.2]" },
+  { name: "Texture.Grassland"  , file: "terrain-grassland.png" , type: "Terrain" , dominance: 6, blendmap: "_[BlendMap.Terrain.2]" },
+  { name: "Texture.Plains"     , file: "terrain-plains.png"    , type: "Terrain" , dominance: 5, blendmap: "_[BlendMap.Terrain.2]" },
+  { name: "Texture.Desert"     , file: "terrain-desert.png"    , type: "Terrain" , dominance: 2, blendmap: "_[BlendMap.Terrain.2]" },
+  { name: "Texture.Tundra"     , file: "terrain-tundra.png"    , type: "Terrain" , dominance: 4, blendmap: "_[BlendMap.Terrain.2]" },
+  { name: "Texture.Arctic"     , file: "terrain-arctic.png"    , type: "Terrain" , dominance: 3, blendmap: "_[BlendMap.Terrain.2]" },
+  { name: "Texture.Jungle"     , file: "terrain-jungle.png"    , type: "Terrain" , dominance: 7, blendmap: "_[BlendMap.Terrain.2]" },
+  { name: "Texture.Coast"      , file: "terrain-coast.png"     , type: "Terrain"  },
   { name: "Texture.RiverCoast" , file: "river-coast.png"       , type: "Terrain"  },
-  { name: "BlendMap.Terrain"   , file: "blendmap-terrain.png"  , type: "BlendMap" },
+  { name: "BlendMap.Covered"   , file: "blendmap-covered.png"  , type: "BlendMap" },
+  { name: "BlendMap.Terrain.1" , file: "blendmap-terrain.png"  , type: "BlendMap" },
   { name: "BlendMap.Terrain.2" , file: "blendmap-terrain-2.png", type: "BlendMap" },
   { name: "BlendMap.Coast"     , file: "blendmap-coast.png"    , type: "BlendMap" },
   { name: "BlendMap.CoastLine" , file: "blendmap-coast.png"    , type: "BlendMap" },
@@ -60,28 +50,40 @@ defs.assets = [
 ];
 
 defs.terrains = [
-  { name: "Desert"             , id: TerrainType.Desert   , move: 1, defense:   0, food: 0, shields: 1, commerce: 0, asset: "_[Texture.Desert]"    },
-  { name: "Plains"             , id: TerrainType.Plains   , move: 1, defense:   0, food: 1, shields: 1, commerce: 0, asset: "_[Texture.Plains]"    },
-  { name: "Grassland"          , id: TerrainType.Grassland, move: 1, defense:   0, food: 2, shields: 1, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Forest"             , id: TerrainType.Forest   , move: 1, defense:  50, food: 1, shields: 2, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Hills"              , id: TerrainType.Hills    , move: 2, defense: 100, food: 1, shields: 0, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Mountains"          , id: TerrainType.Mountains, move: 3, defense: 200, food: 0, shields: 2, commerce: 2, asset: "_[Texture.Grassland]" },
-  { name: "Tundra"             , id: TerrainType.Tundra   , move: 1, defense:   0, food: 1, shields: 1, commerce: 0, asset: "_[Texture.Tundra]"    },
-  { name: "Arctic"             , id: TerrainType.Arctic   , move: 2, defense:   0, food: 0, shields: 0, commerce: 0, asset: "_[Texture.Arctic]"    },
-  { name: "Swamp"              , id: TerrainType.Swamp    , move: 2, defense:  50, food: 1, shields: 0, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Jungle"             , id: TerrainType.Jungle   , move: 2, defense:  50, food: 1, shields: 0, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Ocean"              , id: TerrainType.Ocean    , move: 1, defense:   0, food: 1, shields: 0, commerce: 3, asset: "_[Texture.Ocean]"     }
+  { name: "Desert"             , id: TerrainType.Desert   , category: 1, move: 1, defense:   0, food: 0, production: 1, commerce: 0, asset: "_[Texture.Desert]"    },
+  { name: "Plains"             , id: TerrainType.Plains   , category: 1, move: 1, defense:   0, food: 1, production: 1, commerce: 0, asset: "_[Texture.Plains]"    },
+  { name: "Grassland"          , id: TerrainType.Grassland, category: 1, move: 1, defense:   0, food: 2, production: 1, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Forest"             , id: TerrainType.Forest   , category: 1, move: 1, defense:  50, food: 1, production: 2, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Hills"              , id: TerrainType.Hills    , category: 1, move: 2, defense: 100, food: 1, production: 0, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Mountains"          , id: TerrainType.Mountains, category: 1, move: 3, defense: 200, food: 0, production: 1, commerce: 2, asset: "_[Texture.Grassland]" },
+  { name: "Tundra"             , id: TerrainType.Tundra   , category: 1, move: 1, defense:   0, food: 1, production: 1, commerce: 0, asset: "_[Texture.Tundra]"    },
+  { name: "Arctic"             , id: TerrainType.Arctic   , category: 1, move: 2, defense:   0, food: 0, production: 0, commerce: 0, asset: "_[Texture.Arctic]"    },
+  { name: "Swamp"              , id: TerrainType.Swamp    , category: 1, move: 2, defense:  50, food: 1, production: 0, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Jungle"             , id: TerrainType.Jungle   , category: 1, move: 2, defense:  50, food: 1, production: 0, commerce: 0, asset: "_[Texture.Jungle]"    },
+  { name: "Ocean"              , id: TerrainType.Ocean    , category: 0, move: 1, defense:   0, food: 1, production: 0, commerce: 2, asset: "_[Texture.Ocean]"     }
 ];
 
 defs.resources = [
-  { name: "Fish1"              , food: 0, shields: 0, commerce: 0, terrain: ["#[Ocean]"]                 , assetX: 0, assetY: 5 },
-  { name: "Fish2"              , food: 0, shields: 0, commerce: 0, terrain: ["#[Ocean]"]                 , assetX: 1, assetY: 5 },
-  { name: "Gold"               , food: 0, shields: 0, commerce: 0, terrain: ["#[Grassland]"]             , assetX: 2, assetY: 5 },
-  { name: "Coal"               , food: 0, shields: 0, commerce: 0, terrain: ["#[Grassland]"]             , assetX: 3, assetY: 5 },
-  { name: "Oil"                , food: 0, shields: 0, commerce: 0, terrain: ["#[Desert]", "#[Arctic]"]   , assetX: 4, assetY: 5 },
-  { name: "Corn"               , food: 0, shields: 0, commerce: 0, terrain: ["#[Plains]", "#[Grassland]"], assetX: 5, assetY: 5 },
-  { name: "Iron"               , food: 0, shields: 0, commerce: 0, terrain: ["#[Grassland]"]             , assetX: 6, assetY: 5 },
-  { name: "Rubber"             , food: 0, shields: 0, commerce: 0, terrain: ["#[Grassland]"]             , assetX: 7, assetY: 5 }
+  { name: "Fish1"              , food: 2, production: 0, commerce: 1, terrain: ["#[Ocean]"]                 , onRiver: false, assetX:  0, assetY: 5 },
+  { name: "Fish2"              , food: 1, production: 1, commerce: 1, terrain: ["#[Ocean]"]                 , onRiver: false, assetX:  0, assetY: 6 },
+  { name: "Horse"              , food: 1, production: 1, commerce: 0, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  1, assetY: 5 },
+  { name: "Dear"               , food: 1, production: 1, commerce: 0, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  2, assetY: 5 },
+  { name: "Furs"               , food: 1, production: 1, commerce: 2, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  3, assetY: 5 },
+  { name: "Wheat"              , food: 2, production: 0, commerce: 0, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  4, assetY: 5 },
+  { name: "Bananas"            , food: 2, production: 1, commerce: 1, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  6, assetY: 5 },
+  { name: "Coffee"             , food: 0, production: 2, commerce: 2, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  6, assetY: 6 },
+  { name: "Wine"               , food: 1, production: 1, commerce: 2, terrain: ["#[Grassland]"]             , onRiver: false, assetX:  7, assetY: 5 },
+  { name: "Fruit"              , food: 1, production: 1, commerce: 1, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  7, assetY: 6 },
+  { name: "Salt"               , food: 0, production: 1, commerce: 3, terrain: ["#[Grassland]"]             , onRiver: false, assetX:  9, assetY: 5 },
+  { name: "Rubber"             , food: 0, production: 2, commerce: 1, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  9, assetY: 6 },
+  { name: "Iron"               , food: 0, production: 2, commerce: 0, terrain: ["#[Grassland]"]             , onRiver: false, assetX: 10, assetY: 5 },
+  { name: "Coal"               , food: 0, production: 3, commerce: 2, terrain: ["#[Grassland]"]             , onRiver: false, assetX: 10, assetY: 6 },
+  { name: "Gold"               , food: 0, production: 1, commerce: 6, terrain: ["#[Grassland]", "#[Jungle]"], onRiver: false, assetX: 11, assetY: 5 },
+  { name: "Oil"                , food: 0, production: 3, commerce: 2, terrain: ["#[Desert]", "#[Arctic]"]   , onRiver: false, assetX: 11, assetY: 6 },
+  { name: "Silver"             , food: 0, production: 2, commerce: 3, terrain: ["#[Grassland]", "#[Jungle]"], onRiver: false, assetX: 12, assetY: 5 },
+  { name: "Gems"               , food: 0, production: 3, commerce: 1, terrain: ["#[Grassland]", "#[Jungle]"], onRiver: false, assetX: 12, assetY: 6 },
+  { name: "Aluminium"          , food: 0, production: 2, commerce: 2, terrain: ["#[Grassland]"]             , onRiver: false, assetX: 13, assetY: 5 },
+  { name: "Stones"             , food: 0, production: 3, commerce: 0, terrain: ["#[Desert]"]                , onRiver: false, assetX: 13, assetY: 6 }
 ];
 
 defs.modifiers = [
@@ -93,16 +95,17 @@ defs.modifiers = [
 ];
 
 defs.buildings = [
-  { name: "Palace"             , prereq: ["@[Masonry]"]                  , cost:200, upkeep: 1, flags: ["Capital"] },
+  { name: "Palace"             , prereq: ["@[Masonry]"]                  , cost:200, upkeep: 0, flags: ["Capital"] },
   { name: "Barracks"           , prereq: []                              , cost: 40, upkeep: 1, flags: [] },
   { name: "Granary"            , prereq: ["@[Pottery]"]                  , cost: 60, upkeep: 1, flags: [] },
+  { name: "Temple"             , prereq: ["@[Ceremonial Burial]"]        , cost: 40, upkeep: 1, flags: [] },
   { name: "Marketplace"        , prereq: ["@[Currency]"]                 , cost: 80, upkeep: 1, flags: [] },
   { name: "Library"            , prereq: ["@[Writing]"]                  , cost: 80, upkeep: 1, flags: [] },
   { name: "Courthouse"         , prereq: ["@[Code of Laws]"]             , cost: 80, upkeep: 1, flags: [] },
+  { name: "City Walls"         , prereq: ["@[Masonry]"]                  , cost:100, upkeep: 2, flags: [] },
   { name: "Bank"               , prereq: ["@[Banking]", "%[Marketplace]"], cost:120, upkeep: 2, flags: [] },
   { name: "University"         , prereq: ["@[University]", "%[Library]"] , cost:160, upkeep: 2, flags: [] },
   { name: "Aqueduct"           , prereq: ["@[Construction]"]             , cost:120, upkeep: 2, flags: [] },
-  { name: "Temple"             , prereq: ["@[Ceremonial Burial]"]        , cost: 40, upkeep: 1, flags: [] },
   { name: "Colosseum"          , prereq: ["@[Construction]"]             , cost:100, upkeep: 2, flags: [] },
   { name: "Cathedral"          , prereq: ["@[Religion]"]                 , cost:160, upkeep: 3, flags: [] },
   { name: "Factory"            , prereq: ["@[Industrialization]"]        , cost:200, upkeep: 4, flags: [] },
@@ -417,6 +420,40 @@ defs.civilizations = [
       "Kazan", "Quinsay", "Kerman"
     ]
   }
+];
+
+defs.colors = [
+  { name: "White"              , primary: "#FFFFFF", secondary: "#aAaAaE", text: "#000000", textStroke: "primary"   },
+  { name: "Green"              , primary: "#44ff44", secondary: "#3a9f00", text: "#000000", textStroke: "#afffaf"   },
+  { name: "Blue"               , primary: "#328dff", secondary: "#254AB7", text: "#000000", textStroke: "#429dff"   },
+  { name: "Yellow"             , primary: "#FFFF66", secondary: "#61E365", text: "#000000", textStroke: "primary"   },
+  { name: "Purple"             , primary: "#FF55FF", secondary: "#822014", text: "#000000", textStroke: "#FF85FF"   },
+  { name: "Cyan"               , primary: "#0CE3EB", secondary: "#00AAAA", text: "#000000", textStroke: "#ACE3EB"   },
+  { name: "Gray"               , primary: "#888888", secondary: "#303030", text: "#000000", textStroke: "#cccccc"   },
+  { name: "Orange"             , primary: "#ffaf30", secondary: "#794400", text: "#000000", textStroke: "#ffdf50"   },
+  { name: "Light Purple"       , primary: "#AC31D3", secondary: "#400479", text: "#000000", textStroke: "#CC61E3"   },
+  { name: "Brown"              , primary: "#863D38", secondary: "#611a15", text: "#000000", textStroke: "#C65D48"   },
+  { name: "Navy"               , primary: "#b4fff7", secondary: "#53e7d7", text: "#000000", textStroke: "#ffffff"   },
+  { name: "Black"              , primary: "#101010", secondary: "#404040", text: "#cfcfcf", textStroke: "primary"   },
+  { name: "Red"                , primary: "#FF2f2f", secondary: "#7F1717", text: "#000000", textStroke: "#FF4f4f"   }
+];
+
+defs.icons = [
+  { name: "Food"               , assetX: 0, assetY: 7, width: 20, height: 20 },
+  { name: "Production"         , assetX: 1, assetY: 7, width: 20, height: 20 },
+  { name: "Commerce"           , assetX: 2, assetY: 7, width: 20, height: 20 },
+  { name: "Gold"               , assetX: 3, assetY: 7, width: 20, height: 20 },
+  { name: "Science"            , assetX: 4, assetY: 7, width: 20, height: 20 },
+  { name: "Culture"            , assetX: 5, assetY: 7, width: 20, height: 20 },
+];
+
+defs.rules = [
+  { name: "CityMinFood"        , value:  2, description: "Minimum food at city tile"        },
+  { name: "CityMinProduction"  , value:  1, description: "Minimum production at city tile"  },
+  { name: "CityMinCommerce"    , value:  1, description: "Minimum commerce at city tile"    },
+
+  { name: "RiverCommerceBonus" , value:  1, description: "River commerce bonus (units)"     },
+  { name: "RiverDefenseBonus"  , value: 50, description: "River defense bonus (%)"          }
 ];
 
 $export[$as] = defs;

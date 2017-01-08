@@ -12,7 +12,8 @@
 const core = $core;
 const render = Object.create(null);
 
-const GameError = core.GameError;
+const FAILED = core.FAILED;
+const mindom = core.mindom;
 const GameUtils = core.GameUtils;
 const GameLimits = core.GameLimits;
 
@@ -24,7 +25,43 @@ const TerrainModifier = core.TerrainModifier;
 
 const freeze = Object.freeze;
 
-const RoadIndex = freeze([1, 3, 5, 7, 8, 2, 6, 4]);
+const RoadIndex = freeze([1, 3, 5, 7, 2, 4, 6, 8]);
+
+const MaskTL = EdgeFlags.TopLeft     | EdgeFlags.Top    | EdgeFlags.Left;
+const MaskTR = EdgeFlags.TopRight    | EdgeFlags.Top    | EdgeFlags.Right;
+const MaskBL = EdgeFlags.BottomLeft  | EdgeFlags.Bottom | EdgeFlags.Left;
+const MaskBR = EdgeFlags.BottomRight | EdgeFlags.Bottom | EdgeFlags.Right;
+
+// Decrease the number of roads we render as it gets very messy when roads
+// connect in all directions.
+function simplifyRoadEdges(edges) {
+  if ((edges & MaskTL) === MaskTL) edges ^= EdgeFlags.TopLeft;
+  if ((edges & MaskTR) === MaskTR) edges ^= EdgeFlags.TopRight;
+  if ((edges & MaskBL) === MaskBL) edges ^= EdgeFlags.BottomLeft;
+  if ((edges & MaskBR) === MaskBR) edges ^= EdgeFlags.BottomRight;
+
+  return edges;
+}
+
+function drawText(ctx, args) {
+  if (args.font)
+    ctx.font = args.font;
+
+  if (args.center) {
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+  }
+
+  if (args.stroke) {
+    ctx.strokeStyle = args.stroke;
+    ctx.strokeText(args.text, args.x, args.y);
+  }
+
+  if (args.fill) {
+    ctx.fillStyle = args.fill;
+    ctx.fillText(args.text, args.x, args.y);
+  }
+}
 
 // ============================================================================
 // [RenderUtils]
@@ -292,7 +329,7 @@ class RenderUtils {
           else if (((c |= 0x20) >= 97 && c <= 102))
             color = (color << shift) | (c - 97 + 10);
           else
-            GameError.throw(`RenderUtils.parseColor() - Invalid string '${s}'`);
+            FAILED(`Invalid color '${s}'`);
         }
 
         if (len === 4)
@@ -301,7 +338,7 @@ class RenderUtils {
       }
     }
 
-    GameError.throw(`RenderUtils.parseColor() - Invalid string '${s}'`);
+    FAILED(`Invalid color '${s}'`);
   }
 
   static colorizeImage(dst, dstX, dstY, src, color1, color2) {
@@ -387,13 +424,13 @@ class RenderUtils {
     var radius = info.radius;
     var iter = info.iterations || 1;
 
-    const sw = src.width;                // Source width;
-    const sh = src.height;               // Source height;
-    const tw = sw / sq;              // Number of tiles horizontally.
-    const th = sh / sq;              // Number of tiles vertically.
+    const sw = src.width;                  // Source width;
+    const sh = src.height;                 // Source height;
+    const tw = sw / sq;                    // Number of tiles horizontally.
+    const th = sh / sq;                    // Number of tiles vertically.
 
-    const t0 = new Float64Array(sq * sq); // Temporary buffer #0 for a single tile.
-    const t1 = new Float64Array(sq * sq); // Temporary buffer #1 for a single tile.
+    const t0 = new Float64Array(sq * sq);  // Temporary buffer #0 for a single tile.
+    const t1 = new Float64Array(sq * sq);  // Temporary buffer #1 for a single tile.
 
     const img = src.getContext("2d").getImageData(0, 0, sw, sh);
     const pix = img.data;
@@ -562,7 +599,7 @@ class RenderUtils {
     const th = bh / sqSize;
 
     if (!Number.isInteger(tw) || !Number.isInteger(th))
-      GameError.throw(`BlendMap of size [${bw}, ${bh}] is not divisible by ${sqSize}`);
+      FAILED(`BlendMap of size [${bw}, ${bh}] is not divisible by ${sqSize}`);
 
     // RGBA32 pixels.
     const data = canvas.getContext("2d").getImageData(0, 0, bw, bh).data;
@@ -617,17 +654,17 @@ class AssetStore extends Observable {
   constructor(info) {
     super();
 
-    this.assets = [];                    // Assets array (not the same as `AssetStore.add(assets)`.
-    this.images = [];                    // Images array.
+    this.assets = [];                      // Assets array (not the same as `AssetStore.add(assets)`.
+    this.images = [];                      // Images array.
 
-    this.queuedCount = 0;                // Number of files in the queue.
-    this.loadedCount = 0;                // Number of files loaded.
-    this.failedCount = 0;                // Number of files that failed to load.
+    this.queuedCount = 0;                  // Number of files in the queue.
+    this.loadedCount = 0;                  // Number of files loaded.
+    this.failedCount = 0;                  // Number of files that failed to load.
 
-    this.$running = false;               // If the AssetStore is now fetching assets.
-    this.$baseUrl = info.baseUrl || "";  // Base URL from where to start fetching assets.
+    this.$running = false;                 // If the AssetStore is now fetching assets.
+    this.$baseUrl = info.baseUrl || "";    // Base URL from where to start fetching assets.
 
-    this.$slowLoadingTimerId = null;     // Triggered when loading takes noticeable time.
+    this.$slowLoadingTimerId = null;       // Triggered when loading takes noticeable time.
     this.$slowLoadingTimeout = info.slowLoadingTimeout || 0;
 
     this.$queued = new Map();
@@ -654,11 +691,11 @@ class AssetStore extends Observable {
    */
   update(id, data) {
     if (id < 0 || id >= this.assets.length)
-      GameError.throw(`Asset #${id} out of range`);
+      FAILED(`Asset #${id} out of range`);
 
     const asset = this.assets[id];
     if (asset === null)
-      GameError.throw(`Asset #${id} was not added to the AssetStore`);
+      FAILED(`Asset #${id} was not added to the AssetStore`);
 
     this.images[id] = data;
     asset.image = data;
@@ -677,10 +714,10 @@ class AssetStore extends Observable {
 
     // Verify the asset's ID.
     if (id < 0)
-      GameError.throw(`Asset '${name}' identified as #${id} is invalid`);
+      FAILED(`Asset '${name}' identified as #${id} is invalid`);
 
     if (id > GameLimits.MaxAssets)
-      GameError.throw(`Asset '${name}' identified as #${id} is too high (limit is ${GameLimits.MaxAssets})`);
+      FAILED(`Asset '${name}' identified as #${id} is too high (limit is ${GameLimits.MaxAssets})`);
 
     // Grow `assets` and `images` if necessary, otherwise the VM will create a
     // sparse array which will slow everything down. These arrays are accessed
@@ -690,16 +727,16 @@ class AssetStore extends Observable {
 
     // Verify that the asset having `id` was not registered before.
     if (this.assets[id] !== null)
-      GameError.throw(`Asset '${name}' identified as #${id} already added to the store`);
+      FAILED(`Asset '${name}' identified as #${id} already added to the store`);
 
     // Create the asset (this is different data that is given in `asset`).
     this.assets[id] = {
-      image: null,                       // Asset image (actually it's a Canvas).
-      index: null,                       // Atlas index (only created for BlendMap and Atlas assets)
+      image: null,                         // Asset image (actually it's a Canvas).
+      index: null,                         // Atlas index (only created for BlendMap and Atlas assets)
 
-      name : asset.name,                 // Asset name.
-      file : asset.file,                 // Asset file.
-      type : asset.type                  // Asset type.
+      name : asset.name,                   // Asset name.
+      file : asset.file,                   // Asset file.
+      type : asset.type                    // Asset type.
     };
 
     // If the asset has no file associated then it means it's rendered by the app
@@ -846,11 +883,11 @@ render.AssetStore = AssetStore;
 // [Renderer]
 // ============================================================================
 
-const kGridShift = 3;                    // Shift to get an address to NxN grid.
-const kGridSize = 1 << kGridShift;       // Size of NxN grid (4x4, 8x8, 16x16).
+const kGridShift = 3;                      // Shift to get an address to NxN grid.
+const kGridSize = 1 << kGridShift;         // Size of NxN grid (4x4, 8x8, 16x16).
 
-const kBlockShift = 5;                   // Shift to get an address to NxN block.
-const kBlockSize = 1 << kBlockShift;     // Size of NxN block (32x32 is optimal).
+const kBlockShift = 5;                     // Shift to get an address to NxN block.
+const kBlockSize = 1 << kBlockShift;       // Size of NxN block (32x32 is optimal).
 
 /**
  * Renderer grid - grid of tiles.
@@ -877,13 +914,14 @@ class RendererGrid {
  */
 class RendererTile {
   constructor() {
-    this.baseTexture = 0;                // Base terrain texture.
+    this.baseTexture = 0;                  // Base terrain texture.
     this.transitions = null;
 
-    this.terrainEdges = 0;               // Terrain edges.
-    this.riverEdges = 0;                 // Terrain river edges (only 4 bits).
-    this.roadEdges = 0;                  // Terrain road and railroad edges.
-    this.territoryEdges = 0;             // Territory edges.
+    this.coverEdges = 0;                   // Cover edges.
+    this.terrainEdges = 0;                 // Terrain edges.
+    this.riverEdges = 0;                   // Terrain river edges (only 4 bits).
+    this.roadEdges = 0;                    // Terrain road and railroad edges.
+    this.territoryEdges = 0;               // Territory edges.
   }
 }
 
@@ -891,43 +929,78 @@ class RendererTile {
  * A canvas-based renderer.
  */
 class Renderer {
-  constructor(element) {
-    this.game = null;                    // Game this renderer was attached to.
-    this.map = null;                     // Game map, a shortcut to `game.map`.
+  constructor(container) {
+    this.game = null;                      // Game this renderer was attached to.
+    this.map = null;                       // Game map, a shortcut to `game.map`.
 
-    this.element = element;              // Canvas HTML element.
-    this.canvasW = 0;                    // Canvas screen width (in pixels).
-    this.canvasH = 0;                    // Canvas screen height (in pixels).
+    const canvasAttributes = {
+      style: {
+        position: "absolute",
+        top: "0px",
+        left: "0px"
+      }
+    };
+    const sceneCanvas = mindom.create("canvas", canvasAttributes);
+    const overlayCanvas = mindom.create("canvas", canvasAttributes);
 
-    this.tileSize = 32;                  // Tile width and height (in pixels).
-    this.tileHalf = 16;                  // Half of the tile width and heigh (in pixels).
+    this.container = container;            // Game container (DIV).
+    this.sceneCanvas = sceneCanvas;        // Scene element (CANVAS).
+    this.overlayCanvas = overlayCanvas;    // Overlay element (CANVAS).
 
-    this.worldX = 0;                     // World X offset for scrolling: 0 to `worldW - 1`.
-    this.worldY = 0;                     // World Y offset for scrolling: 0 to `worldH - 1`.
-    this.worldW = 0;                     // World width (in pixels).
-    this.worldH = 0;                     // World height (in pixels).
+    this.sceneW = 0;                       // Scene width (in pixels).
+    this.sceneH = 0;                       // Scene height (in pixels).
 
-    this.$grid = [];                     // Maps a grid index to a `RendererGrid` object.
-    this.$gridW = 0;                     // Grid width (number of `RendererGrid` objects horizontally).
-    this.$gridH = 0;                     // Grid height (number of `RendererGrid` objects vertically).
+    this.tileSize = 32;                    // Tile width and height (in pixels).
+    this.tileHalf = 16;                    // Half of the tile width and heigh (in pixels).
 
-    this.$tiles = [];                    // Renderer tiles (not the same as game tiles), see `RendererTile`.
-    this.$tilesDirty = null;             // Dirty blocks (NxN) of `$tiles` (Int32Array).
-    this.$tilesTmpArray = [];            // Temporary array used by tile updater to construct their transitions.
+    this.worldX = 0;                       // World X offset for scrolling: 0 to `worldW - 1`.
+    this.worldY = 0;                       // World Y offset for scrolling: 0 to `worldH - 1`.
+    this.worldW = 0;                       // World width (in pixels).
+    this.worldH = 0;                       // World height (in pixels).
 
-    this.$blocks = [];                   // Pre-rendered blocks of tiles (array of Canvas instances).
-    this.$blocksDirty = null;            // Dirty blocks (NxN) of `$blocks` (Int32Array).
+    this.debug = 0;
+    this._playerId = -1;                   // Render only view specific to playerId (-1 means all).
 
-    this.dominanceById = [];             // Terrain dominance by ID (calculation based on terrains and assets).
+    this.$grid = [];                       // Maps a grid index to a `RendererGrid` object.
+    this.$gridW = 0;                       // Grid width (number of `RendererGrid` objects horizontally).
+    this.$gridH = 0;                       // Grid height (number of `RendererGrid` objects vertically).
+
+    this.$tiles = [];                      // Renderer tiles (not the same as game tiles), see `RendererTile`.
+    this.$tilesDirty = null;               // Dirty blocks (NxN) of `$tiles` (Int32Array).
+    this.$tilesTmpArray = [];              // Temporary array used by tile updater to construct their transitions.
+
+    this.$blocks = [];                     // Pre-rendered blocks of tiles (array of Canvas instances).
+    this.$blocksDirty = null;              // Dirty blocks (NxN) of `$blocks` (Int32Array).
+
+    this.dominanceById = [];               // Terrain dominance by ID (calculation based on terrains and assets).
     this.textureByDominance = [];
     this.blendmapByDominance = [];
 
-    this.updateCanvasSize(this.element.width, this.element.height);
+    this.container.appendChild(this.sceneCanvas);
+    this.container.appendChild(this.overlayCanvas);
+    this.updateCanvasSize(container.clientWidth, container.clientHeight);
+  }
+
+  get playerId() {
+    return this._playerId;
+  }
+
+  set playerId(id) {
+    if (this._playerId !== id) {
+      this._playerId = id;
+      this.invalidateAll();
+    }
   }
 
   updateCanvasSize(w, h) {
-    this.canvasW = w;
-    this.canvasH = h;
+    this.sceneW = w;
+    this.sceneH = h;
+
+    this.sceneCanvas.width = w;
+    this.sceneCanvas.height = h;
+
+    this.overlayCanvas.width = w;
+    this.overlayCanvas.height = h;
   }
 
   // TODO: Unfinished - must find invalid defs, must find the highest dominance.
@@ -975,45 +1048,52 @@ class Renderer {
     if (rw === 0 || rh === 0) return;
 
     if (x0 >= rw || y0 >= rh)
-      GameError.throw(`Renderer.render() - World coordinates [${x0} ${y0}] overflow world boundary [${rw} ${rh}]`);
+      FAILED(`World coordinates [${x0} ${y0}] overflow world boundary [${rw} ${rh}]`);
 
-    const x1 = x0 + this.canvasW;
-    const y1 = y0 + this.canvasH;
+    const x1 = x0 + this.sceneW;
+    const y1 = y0 + this.sceneH;
     this.$updateMapArea(x0, y0, x1, y1);
 
-    const ctx = this.element.getContext("2d");
+    const ctx = this.sceneCanvas.getContext("2d");
     this.$renderMapArea(ctx, 0, 0, x0, y0, x1, y1);
   }
 
   onAttach(game) {
     this.game = game;
-    this.game.on("invalidateMap" , this.onInvalidateMap , this);
-    this.game.on("invalidateTile", this.onInvalidateTile, this);
-    this.game.on("invalidateRect", this.onInvalidateRect, this);
+    this.map = game.map;
 
-    this.onInvalidateMap();
+    game.on("mapResize"     , this.$onMapResize  , this);
+    game.on("invalidateAll" , this.invalidateAll , this);
+    game.on("invalidateTile", this.invalidateTile, this);
+    game.on("invalidateRect", this.invalidateRect, this);
+
+    this.$onMapResize();
     this.updateTerrainDominance();
   }
 
   onDetach() {
-    this.game.off("invalidateMap" , this.onInvalidateMap , this);
-    this.game.off("invalidateTile", this.onInvalidateTile, this);
-    this.game.off("invalidateRect", this.onInvalidateRect, this);
-    this.game = null;
-
-    this.onInvalidateMap();
-  }
-
-  onInvalidateMap() {
     const game = this.game;
 
-    if (game !== null) {
-      const map = game.map;
+    game.off("mapResize"     , this.$onMapResize  , this);
+    game.off("invalidateAll" , this.invalidateAll , this);
+    game.off("invalidateTile", this.invalidateTile, this);
+    game.off("invalidateRect", this.invalidateRect, this);
 
+    this.game = null;
+    this.map = null;
+    this.$onMapResize();
+  }
+
+  $onMapResize() {
+    const game = this.game;
+    const map = this.map;
+
+    const w = map ? map.w : 0;
+    const h = map ? map.h : 0;
+
+    if (w && h) {
       const gridW = Math.floor((map.w + kGridSize - 1) / kGridSize);
       const gridH = Math.floor((map.h + kGridSize - 1) / kGridSize);
-
-      this.map = map;
 
       this.worldX = 0;
       this.worldY = 0;
@@ -1023,25 +1103,20 @@ class Renderer {
       this.$createGrid(gridW, gridH);
     }
     else {
-      this.map = null;
-
       this.worldX = 0;
       this.worldY = 0;
       this.worldW = 0;
       this.worldH = 0;
 
-      this.$gridW = 0;
-      this.$gridH = 0;
-
       this.$deleteGrid();
     }
   }
 
-  onInvalidateTile(mx, my) {
-    this.onInvalidateRect(mx, my, 1, 1);
+  invalidateTile(mx, my) {
+    this.invalidateRect(mx, my, 1, 1);
   }
 
-  onInvalidateRect(rx, ry, rw, rh) {
+  invalidateRect(rx, ry, rw, rh) {
     const map = this.map;
     const mw = map.w;
     const mh = map.h;
@@ -1079,6 +1154,14 @@ class Renderer {
         blocksDirty[idx] |= bit;
       }
     }
+
+    const ui = this.game.ui;
+    if (ui) ui.makeDirty();
+  }
+
+  invalidateAll() {
+    const map = this.map;
+    this.invalidateRect(0, 0, map.w, map.h);
   }
 
   $createGrid(gridW, gridH) {
@@ -1171,6 +1254,9 @@ class Renderer {
   }
 
   $deleteGrid() {
+    this.$gridW = 0;
+    this.$gridH = 0;
+
     this.$tiles.length = 0;
     this.$tilesDirty = null;
 
@@ -1318,29 +1404,64 @@ class Renderer {
 
     const w = map.w;
     const h = map.h;
-    const tiles = map.tiles;
 
     const sqSize = 32;
 
     const id = mapTile.id;
     const modifiers = mapTile.modifiers;
 
-    const yPrev = GameUtils.repeat(y - 1, h);
-    const yNext = GameUtils.repeat(y + 1, h);
+    const xPrev = map.normX(x - 1);
+    const yPrev = map.normY(y - 1);
+    const xNext = map.normX(x + 1);
+    const yNext = map.normY(y + 1);
 
-    const xPrev = GameUtils.repeat(x - 1, w);
-    const xNext = GameUtils.repeat(x + 1, w);
+    const tlIndex = yPrev * w + xPrev; // Top left.
+    const tcIndex = yPrev * w + x    ; // Top center.
+    const trIndex = yPrev * w + xNext; // Top right.
+    const mlIndex = y     * w + xPrev; // Middle left.
+    const mrIndex = y     * w + xNext; // Middle right.
+    const blIndex = yNext * w + xPrev; // Bottom left.
+    const bcIndex = yNext * w + x    ; // Bottom center.
+    const brIndex = yNext * w + xNext; // Bottom right.
 
-    const tl = tiles[yPrev * w + xPrev]; // Top left.
-    const tc = tiles[yPrev * w + x    ]; // Top center.
-    const tr = tiles[yPrev * w + xNext]; // Top right.
-    const ml = tiles[y     * w + xPrev]; // Middle left.
-    const mr = tiles[y     * w + xNext]; // Middle right.
-    const bl = tiles[yNext * w + xPrev]; // Bottom left.
-    const bc = tiles[yNext * w + x    ]; // Bottom center.
-    const br = tiles[yNext * w + xNext]; // Bottom right.
+    // Calculate covered edges.
+    const playerId = this._playerId;
+    if (playerId !== -1) {
+      const bits = game.players[playerId].uncovered;
+      const bpos = y * w + x;
+
+      if (!(bits[bpos >>> 5] & (1 << (bpos & 0x1F)))) {
+        rendererTile.coverEdges = 256;
+      }
+      else {
+        const coverEdges = (!(bits[tlIndex >>> 5] & (1 << (tlIndex & 0x1F))) ? EdgeFlags.TopLeft     : 0) |
+                           (!(bits[tcIndex >>> 5] & (1 << (tcIndex & 0x1F))) ? EdgeFlags.Top         : 0) |
+                           (!(bits[trIndex >>> 5] & (1 << (trIndex & 0x1F))) ? EdgeFlags.TopRight    : 0) |
+                           (!(bits[mlIndex >>> 5] & (1 << (mlIndex & 0x1F))) ? EdgeFlags.Left        : 0) |
+                           (!(bits[mrIndex >>> 5] & (1 << (mrIndex & 0x1F))) ? EdgeFlags.Right       : 0) |
+                           (!(bits[blIndex >>> 5] & (1 << (blIndex & 0x1F))) ? EdgeFlags.BottomLeft  : 0) |
+                           (!(bits[bcIndex >>> 5] & (1 << (bcIndex & 0x1F))) ? EdgeFlags.Bottom      : 0) |
+                           (!(bits[brIndex >>> 5] & (1 << (brIndex & 0x1F))) ? EdgeFlags.BottomRight : 0) ;
+        rendererTile.coverEdges = coverEdges;
+      }
+    }
+    else {
+      rendererTile.coverEdges = 0;
+    }
+
+    const tiles = map.tiles;
+
+    const tl = tiles[tlIndex];
+    const tc = tiles[tcIndex];
+    const tr = tiles[trIndex];
+    const ml = tiles[mlIndex];
+    const mr = tiles[mrIndex];
+    const bl = tiles[blIndex];
+    const bc = tiles[bcIndex];
+    const br = tiles[brIndex];
 
     // Calculate terrain edges.
+    const assets = defs.assets;
     const terrains = defs.terrains;
     const terrainInfo = terrains[id];
 
@@ -1349,28 +1470,24 @@ class Renderer {
 
     var dominance = dominanceById[id];
 
-    const terrainEdges = (tl.id === id ? EdgeFlags.TopLeft    : 0) |
-                         (tc.id === id ? EdgeFlags.Top        : 0) |
-                         (tr.id === id ? EdgeFlags.TopRight   : 0) |
-                         (ml.id === id ? EdgeFlags.Left       : 0) |
-                         (mr.id === id ? EdgeFlags.Right      : 0) |
-                         (bl.id === id ? EdgeFlags.BottomLeft : 0) |
-                         (bc.id === id ? EdgeFlags.Bottom     : 0) |
-                         (br.id === id ? EdgeFlags.BottomRight: 0) ;
+    const terrainEdges = (tl.id === id ? EdgeFlags.TopLeft     : 0) |
+                         (tc.id === id ? EdgeFlags.Top         : 0) |
+                         (tr.id === id ? EdgeFlags.TopRight    : 0) |
+                         (ml.id === id ? EdgeFlags.Left        : 0) |
+                         (mr.id === id ? EdgeFlags.Right       : 0) |
+                         (bl.id === id ? EdgeFlags.BottomLeft  : 0) |
+                         (bc.id === id ? EdgeFlags.Bottom      : 0) |
+                         (br.id === id ? EdgeFlags.BottomRight : 0) ;
+
+    rendererTile.baseTexture = terrainInfo.assetId;
     rendererTile.terrainEdges = terrainEdges;
 
     // TODO: Adhoc, rewrite to some nicer form.
-    if (id === TerrainType.Ocean) {
-      if (terrainEdges === 0xFF) {
-        rendererTile.baseTexture = terrains[TerrainType.Ocean].assetId;
-      }
-      else {
-        rendererTile.baseTexture = terrains[TerrainType.Desert].assetId;
-        // dominance = dominanceById[TerrainType.Desert];
-      }
-    }
-    else {
-      rendererTile.baseTexture = terrainInfo.assetId;
+    if (terrainEdges !== 0xFF && id === TerrainType.Ocean) {
+      //rendererTile.baseTexture = assets.byName("Texture.Desert").id;
+      //dominance = 1;
+      rendererTile.baseTexture = terrains[TerrainType.Desert].assetId;
+      dominance = dominanceById[TerrainType.Desert];
     }
 
     var tlDom = dominanceById[tl.id]; // Top left.
@@ -1383,14 +1500,14 @@ class Renderer {
     var brDom = dominanceById[br.id]; // Bottom right.
 
     for (var i = dominance + 1; i <= 8; i++) {
-      const mask = (tlDom === i ? EdgeFlags.TopLeft    : 0) |
-                   (tcDom === i ? EdgeFlags.Top        : 0) |
-                   (trDom === i ? EdgeFlags.TopRight   : 0) |
-                   (mlDom === i ? EdgeFlags.Left       : 0) |
-                   (mrDom === i ? EdgeFlags.Right      : 0) |
-                   (blDom === i ? EdgeFlags.BottomLeft : 0) |
-                   (bcDom === i ? EdgeFlags.Bottom     : 0) |
-                   (brDom === i ? EdgeFlags.BottomRight: 0) ;
+      const mask = (tlDom === i ? EdgeFlags.TopLeft     : 0) |
+                   (tcDom === i ? EdgeFlags.Top         : 0) |
+                   (trDom === i ? EdgeFlags.TopRight    : 0) |
+                   (mlDom === i ? EdgeFlags.Left        : 0) |
+                   (mrDom === i ? EdgeFlags.Right       : 0) |
+                   (blDom === i ? EdgeFlags.BottomLeft  : 0) |
+                   (bcDom === i ? EdgeFlags.Bottom      : 0) |
+                   (brDom === i ? EdgeFlags.BottomRight : 0) ;
       if (mask)
         this.$addTransition(transitions,
           this.textureByDominance[i], this.blendmapByDominance[i], TerrainTransitions.LUT[mask], sqSize);
@@ -1446,14 +1563,14 @@ class Renderer {
           continue;
 
         // The same algorithm as calculating terrain edges.
-        const impr = ((tl.modifiers & mask) ? EdgeFlags.TopLeft    : 0) |
-                     ((tc.modifiers & mask) ? EdgeFlags.Top        : 0) |
-                     ((tr.modifiers & mask) ? EdgeFlags.TopRight   : 0) |
-                     ((ml.modifiers & mask) ? EdgeFlags.Left       : 0) |
-                     ((mr.modifiers & mask) ? EdgeFlags.Right      : 0) |
-                     ((bl.modifiers & mask) ? EdgeFlags.BottomLeft : 0) |
-                     ((bc.modifiers & mask) ? EdgeFlags.Bottom     : 0) |
-                     ((br.modifiers & mask) ? EdgeFlags.BottomRight: 0) ;
+        const impr = ((tl.modifiers & mask) ? EdgeFlags.TopLeft     : 0) |
+                     ((tc.modifiers & mask) ? EdgeFlags.Top         : 0) |
+                     ((tr.modifiers & mask) ? EdgeFlags.TopRight    : 0) |
+                     ((ml.modifiers & mask) ? EdgeFlags.Left        : 0) |
+                     ((mr.modifiers & mask) ? EdgeFlags.Right       : 0) |
+                     ((bl.modifiers & mask) ? EdgeFlags.BottomLeft  : 0) |
+                     ((bc.modifiers & mask) ? EdgeFlags.Bottom      : 0) |
+                     ((br.modifiers & mask) ? EdgeFlags.BottomRight : 0) ;
 
         // Road mask     - 0x00FF.
         // Railroad mask - 0xFF00.
@@ -1467,14 +1584,14 @@ class Renderer {
     var territoryEdges = 0;
 
     if (territory !== -1) {
-      territoryEdges = (tl.territory === territory ? EdgeFlags.TopLeft    : 0) |
-                       (tc.territory === territory ? EdgeFlags.Top        : 0) |
-                       (tr.territory === territory ? EdgeFlags.TopRight   : 0) |
-                       (ml.territory === territory ? EdgeFlags.Left       : 0) |
-                       (mr.territory === territory ? EdgeFlags.Right      : 0) |
-                       (bl.territory === territory ? EdgeFlags.BottomLeft : 0) |
-                       (bc.territory === territory ? EdgeFlags.Bottom     : 0) |
-                       (br.territory === territory ? EdgeFlags.BottomRight: 0) ;
+      territoryEdges = (tl.territory === territory ? EdgeFlags.TopLeft     : 0) |
+                       (tc.territory === territory ? EdgeFlags.Top         : 0) |
+                       (tr.territory === territory ? EdgeFlags.TopRight    : 0) |
+                       (ml.territory === territory ? EdgeFlags.Left        : 0) |
+                       (mr.territory === territory ? EdgeFlags.Right       : 0) |
+                       (bl.territory === territory ? EdgeFlags.BottomLeft  : 0) |
+                       (bc.territory === territory ? EdgeFlags.Bottom      : 0) |
+                       (br.territory === territory ? EdgeFlags.BottomRight : 0) ;
     }
     rendererTile.territoryEdges = territoryEdges;
   }
@@ -1496,6 +1613,9 @@ class Renderer {
   $renderMapArea(ctx, cx, cy, x0, y0, x1, y1) {
     this.$renderMapTerrain(ctx, cx, cy, x0, y0, x1, y1);
     this.$renderMapObjects(ctx, cx, cy, x0, y0, x1, y1);
+
+    if (this.debug)
+      this.$renderDebugObjects(ctx, cx, cy, x0, y0, x1, y1);
   }
 
   $renderMapTerrain(ctx, cx, cy, x0, y0, x1, y1) {
@@ -1610,6 +1730,10 @@ class Renderer {
 
     const miscImg = images[assets.byName("Misc").id];
     const unitsImg = images[assets.byName("Units").id];
+
+    const coverImg = images[assets.byName("Texture.Covered").id];
+    const coverBM = images[assets.byName("BlendMap.Covered").id];
+
     const territoryImg = images[assets.byName("BlendMap.Territory").id];
 
     for (;;) {
@@ -1623,121 +1747,258 @@ class Renderer {
         const mTile = mapTiles[tileIndex];
         const rTile = rendererTiles[tileIndex];
 
-        const id = mTile.id;
-        const modifiers = mTile.modifiers;
+        const coverEdges = rTile.coverEdges;
 
-        if (id !== TerrainType.Ocean) {
-          // Irrigation.
-          if (modifiers & TerrainModifier.kIrrigation) {
-            ctx.drawImage(miscImg, 0, 96, tileSize, tileSize, dx, dy, tileSize, tileSize);
-          }
+        if (coverEdges === 256) {
+          const texX = Math.floor((this.worldX + dx) % 256);
+          const texY = Math.floor((this.worldY + dy) % 256);
 
-          // Roads / Railroads.
-          if (modifiers & TerrainModifier.kRoad) {
-            var roadEdges = rTile.roadEdges;
-            if (roadEdges === 0) {
-              ctx.drawImage(miscImg, 0, 32, tileSize, tileSize, dx, dy, tileSize, tileSize);
+          // Fully covered tile.
+          ctx.drawImage(coverImg, texX, texY, tileSize, tileSize, dx, dy, tileSize, tileSize);
+        }
+        else {
+          // Fully or partially uncovered tile.
+          const id = mTile.id;
+          const modifiers = mTile.modifiers;
+
+          if (id !== TerrainType.Ocean) {
+            // Irrigation.
+            if (modifiers & TerrainModifier.kIrrigation) {
+              ctx.drawImage(miscImg, 0, 128, tileSize, tileSize, dx, dy, tileSize, tileSize);
             }
-            else {
-              // TODO: This logic cannot be here.
-              // Decrease the number of roads we render as it gets very messy when roads
-              // connect in all directions.
-              const maskTL = EdgeFlags.TopLeft     | EdgeFlags.Top    | EdgeFlags.Left;
-              const maskTR = EdgeFlags.TopRight    | EdgeFlags.Top    | EdgeFlags.Right;
-              const maskBL = EdgeFlags.BottomLeft  | EdgeFlags.Bottom | EdgeFlags.Left;
-              const maskBR = EdgeFlags.BottomRight | EdgeFlags.Bottom | EdgeFlags.Right;
 
-              if ((roadEdges & maskTL) === maskTL) roadEdges ^= EdgeFlags.TopLeft;
-              if ((roadEdges & maskTR) === maskTR) roadEdges ^= EdgeFlags.TopRight;
-              if ((roadEdges & maskBL) === maskBL) roadEdges ^= EdgeFlags.BottomLeft;
-              if ((roadEdges & maskBR) === maskBR) roadEdges ^= EdgeFlags.BottomRight;
+            // Roads / Railroads.
+            if (modifiers & (TerrainModifier.kRoad | TerrainModifier.kRailroad)) {
+              var roadEdges = rTile.roadEdges;
+              if (roadEdges === 0) {
+                const index = (modifiers & TerrainModifier.kRailroad) ? 64 : 32;
+                ctx.drawImage(miscImg, 0, index, tileSize, tileSize, dx, dy, tileSize, tileSize);
+              }
+              else {
+                // Don't render roads connections under railroad connections.
+                roadEdges &= ~(roadEdges >> 8);
 
-              for (var i = 0; i < 8; i++) {
-                if (roadEdges & (1 << i)) {
-                  ctx.drawImage(miscImg, RoadIndex[i] * tileSize, 32, tileSize, tileSize, dx, dy, tileSize, tileSize);
+                // TODO: This logic cannot be here.
+                // Decrease the number of roads we render as it gets very messy when roads
+                // connect in all directions.
+                if (roadEdges & 0xFF) {
+                  const edges = simplifyRoadEdges(roadEdges);
+                  for (var i = 0; i < 8; i++) {
+                    if (edges & (1 << i))
+                      ctx.drawImage(miscImg, RoadIndex[i] * tileSize, 32, tileSize, tileSize, dx, dy, tileSize, tileSize);
+                  }
+                }
+
+                roadEdges >>>= 8;
+                if (roadEdges) {
+                  const edges = roadEdges;
+                  for (var i = 0; i < 8; i++) {
+                    if (edges & (1 << i))
+                      ctx.drawImage(miscImg, RoadIndex[i] * tileSize, 64, tileSize, tileSize, dx, dy, tileSize, tileSize);
+                  }
+                }
+                else if (modifiers & (TerrainModifier.kRailroad)) {
+                  ctx.drawImage(miscImg, 0, 64, tileSize, tileSize, dx, dy, tileSize, tileSize);
                 }
               }
             }
           }
-        }
 
-        // Render resource.
-        const resource = mTile.resource;
-        const resInfo = resource !== -1 ? defs.resources[resource] : null;
+          // Render resource.
+          const resource = mTile.resource;
+          const resInfo = resource !== -1 ? defs.resources[resource] : null;
 
-        if (resInfo)
-          ctx.drawImage(miscImg, resInfo.assetX * tileSize, resInfo.assetY * tileSize, tileSize, tileSize, dx, dy, tileSize, tileSize);
+          if (resInfo)
+            ctx.drawImage(miscImg, resInfo.assetX * tileSize, resInfo.assetY * tileSize, tileSize, tileSize, dx, dy, tileSize, tileSize);
 
-        // Render city and units.
-        const city = mTile.city;
-        const units = mTile.units;
+          // Render city and units.
+          const city = mTile.city;
+          const units = mTile.units;
 
-        if (city !== null) {
-          // City rendering.
-          const player = city.player;
-          const colorSlot = player.colorSlot;
-          const colors = core.defs.colors[colorSlot];
-          ctx.drawImage(unitsImg, 0, colorSlot * tileSize, tileSize, tileSize, dx, dy, tileSize, tileSize);
+          if (city !== null) {
+            // City rendering.
+            const player = city.player;
+            const colorSlot = player.colorSlot;
+            const colors = defs.colors[colorSlot];
+            ctx.drawImage(unitsImg, 0, colorSlot * tileSize, tileSize, tileSize, dx, dy, tileSize, tileSize);
 
-          // TODO: City walls - Anything in a city that requires special rendering
-          // should be configurable in defs, this is so bound to the "civ" game.
-          // ctx.drawImage(assetsImg, 32, 128, sq, sq, dx, dy, sq, sq);
+            // TODO: City walls - Anything in a city that requires special rendering
+            // should be configurable in defs, this is so bound to the "civ" game.
+            if (city.hasBuilding("City Walls"))
+              ctx.drawImage(miscImg, 32, 128, tileSize, tileSize, dx, dy, tileSize, tileSize);
 
-          // Defended city.
-          if (units) {
-            ctx.strokeStyle = "#000000";
+            // Defended city.
+            if (units)
+              ctx.drawImage(miscImg, 64, 128, tileSize, tileSize, dx, dy, tileSize, tileSize);
+
+            ctx.font = "bold 16px helvetica";
+            ctx.textBaseline = "middle";
+            ctx.textAlign = "center";
+
+            const text = String(city.size);
+            const tx = dx + tileHalf;
+            const ty = dy + tileHalf + 1;
+
             ctx.lineWidth = 2;
-            ctx.strokeRect(dx + 1, dy + 1, tileSize - 2, tileSize - 2);
+            ctx.strokeStyle = colors.textStroke;
+            ctx.strokeText(text, tx, ty);
+
+            ctx.fillStyle = colors.text;
+            ctx.fillText(text, tx, ty);
+          }
+          else if (units !== null) {
+            // Unit rendering.
+            const unit = units;
+            const stacked = unit.next !== null;
+
+            const player = unit.player;
+            const colorSlot = player.colorSlot;
+
+            const tx = (unit.id + 1) * tileSize;
+            const ty = colorSlot * tileSize;
+
+            ctx.drawImage(unitsImg, tx, ty, tileSize, tileSize, dx, dy, tileSize, tileSize);
+            if (stacked)
+              ctx.drawImage(unitsImg, tx, ty, tileSize, tileSize, dx - 2, dy - 2, tileSize, tileSize);
           }
 
-          ctx.font = "bold 18px helvetica";
-          ctx.textBaseline = "middle";
-          ctx.textAlign = "center";
+          // Cover edges.
+          if (coverEdges !== 0) {
+            const texX = Math.floor((this.worldX + dx) % 256);
+            const texY = Math.floor((this.worldY + dy) % 256);
 
-          const text = String(city.size);
-          const tx = dx + tileHalf;
-          const ty = dy + tileHalf + 1;
+            this.$renderTransition(ctx, dx, dy, coverImg, texX, texY, coverBM, TerrainTransitions.LUT[coverEdges] * tileSize, 0, tileSize);
+          }
 
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = colors.primary;
-          ctx.strokeText(text, tx, ty);
-
-          ctx.fillStyle = "#000";
-          ctx.fillText(text, tx, ty);
-        }
-        else if (units !== null) {
-          // Unit rendering.
-          const unit = units;
-          const stacked = unit.next !== null;
-
-          const player = unit.player;
-          const colorSlot = player.colorSlot;
-
-          const tx = (unit.id + 1) * tileSize;
-          const ty = colorSlot * tileSize;
-
-          ctx.drawImage(unitsImg, tx, ty, tileSize, tileSize, dx, dy, tileSize, tileSize);
-          if (stacked)
-            ctx.drawImage(unitsImg, tx, ty, tileSize, tileSize, dx - 2, dy - 2, tileSize, tileSize);
-        }
-
-        // Territory.
-        const territory = mTile.territory;
-        if (territory !== -1) {
-          const territoryEdges = rTile.territoryEdges;
-          if (territoryEdges !== 0xFF) {
-            ctx.drawImage(territoryImg, tileSize * TerritoryTransitions.LUT[territoryEdges], tileSize * territory, tileSize, tileSize, dx, dy, tileSize, tileSize);
+          // Territory.
+          const territory = mTile.territory;
+          if (territory !== -1) {
+            const territoryEdges = rTile.territoryEdges;
+            if (territoryEdges !== 0xFF) {
+              ctx.drawImage(territoryImg, tileSize * TerritoryTransitions.LUT[territoryEdges], tileSize * territory, tileSize, tileSize, dx, dy, tileSize, tileSize);
+            }
           }
         }
 
-        // TODO: Make a way to turn on a debug overlay and get rid off this.
-        /*
-        ctx.font = "bold 7px sans";
-        ctx.fillStyle = "#FFFFFF";
-        ctx.textBaseline = "middle";
-        ctx.textAlign = "center";
-        ctx.fillText(String(tile.continentId === -1 ? tile.oceanId : tile.continentId), dx + halfW, dy + halfH);
-        */
+        dx += tileSize;
+        if (dx >= x1) break;
+
+        if (++tx >= mapW) tx = 0;
+      }
+
+      dy += tileSize;
+      if (dy >= y1) break;
+
+      if (++ty >= mapH) ty = 0;
+    }
+  }
+
+  $renderDebugObjects(ctx, cx, cy, x0, y0, x1, y1) {
+    const tileSize = this.tileSize;
+    const tileHalf = this.tileHalf;
+
+    // Initialize the first tile offsets.
+    const txInit = Math.floor(x0 / tileSize);
+    const tyInit = Math.floor(y0 / tileSize);
+
+    // Adjust the input coordinates here according to `cx` and `cy` as it's
+    // much easier to just adjust it instead of messing with them within the loop.
+    const dxInit = cx - x0 + txInit * tileSize;
+    const dyInit = cy - y0 + tyInit * tileSize;
+
+    const rw = x1 - x0;
+    const rh = y1 - y0;
+
+    const mapW = this.map.w;
+    const mapH = this.map.h;
+
+    const mapTiles = this.map.tiles;
+    const rendererTiles = this.$tiles;
+
+    x1 = cx + rw; x0 = cx;
+    y1 = cy + rh; y0 = cy;
+
+    // Initial tile-y coordinates.
+    var dy = dyInit;
+    var ty = tyInit;
+
+    // Game-data and assets.
+    const game = this.game;
+    const defs = game.defs;
+
+    const icons = defs.icons;
+    const assets = defs.assets;
+
+    const images = game.assetStore.images;
+    const miscImg = images[assets.byName("Misc").id];
+
+    const debug = this.debug;
+
+    for (;;) {
+      // Initial grid-x coordinates.
+      var dx = dxInit;
+      var tx = txInit;
+
+      for (;;) {
+        const tileIndex = ty * mapW + tx;
+
+        const mTile = mapTiles[tileIndex];
+        const rTile = rendererTiles[tileIndex];
+
+        if (rTile.coverEdges !== 256) {
+          switch (debug) {
+            case 1: {
+              drawText(ctx, {
+                x: dx + tileHalf,
+                y: dy + tileHalf,
+                center: true,
+                fill: "#FFFFFF",
+                stroke: "#000000",
+                font: "bold 9px sans",
+                text: String(mTile.deepness)
+              });
+              break;
+            }
+
+            case 2: {
+              drawText(ctx, {
+                x: dx + tileHalf,
+                y: dy + tileHalf,
+                center: true,
+                fill: mTile.continentId !== -1 ? "#FFFFFF" : "#4FDFFF",
+                stroke: "#000000",
+                font: "bold 9px sans",
+                text: mTile.continentId !== -1 ? String(mTile.continentId) : String(mTile.oceanId)
+              });
+              break;
+            }
+            
+            case 3: {
+              const terrainInfo = defs.terrains[mTile.id];
+              var rposX = 0;
+              var rposY = 0;
+
+              const o = {};
+              game.calcTile(o, mTile);
+
+              for (var r = 0; r < 3; r++) {
+                const count = r === 0 ? o.food       :
+                              r === 1 ? o.production :
+                                        o.commerce   ;
+
+                const icon  = r === 0 ? icons.byName("Food")       :
+                              r === 1 ? icons.byName("Production") :
+                                        icons.byName("Commerce")   ;
+
+                for (var i = 0; i < count; i++) {
+                  ctx.drawImage(miscImg, icon.assetX * 32, icon.assetY * 32, icon.width, icon.height, dx + rposX * 5, dy + rposY * 10, 14, 14);
+                  if (++rposX == 6) { rposX = 0; rposY++; }
+                }
+              }
+              break;
+            }
+          }
+        }
 
         dx += tileSize;
         if (dx >= x1) break;

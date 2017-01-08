@@ -6,9 +6,9 @@
 (function(core, $export, $as) {
 "use strict";
 
-const GameError = core.GameError;
-const GameUtils = core.GameUtils;
+const FAILED = core.FAILED;
 
+const GameUtils = core.GameUtils;
 const Random = core.Random;
 const Brush = core.Brush;
 const Sides = Brush.Sides;
@@ -19,7 +19,7 @@ const TerrainModifier = core.TerrainModifier;
 const mapgen = Object.create(null);
 
 // ============================================================================
-// [BaseMapGen]
+// [mapgen.BaseMapGen]
 // ============================================================================
 
 /**
@@ -45,9 +45,15 @@ class BaseMapGen {
    * Generates the whole map.
    */
   generate() {
+    const map = this.map;
+    map.supressNotifications++;
+
     this.generateContinents();
     this.generateRivers();
     this.generateTerrain();
+
+    map.supressNotifications--;
+    map.invalidateAll();
   }
 
   /**
@@ -56,7 +62,7 @@ class BaseMapGen {
    * @abstract
    */
   generateContinents() {
-    GameError.throw(`BaseMapGen.generateContinents() - Abstract method called`);
+    FAILED(`Abstract method called`);
   }
 
   /**
@@ -64,7 +70,7 @@ class BaseMapGen {
    */
   generateRivers() {
     const map = this.map;
-    const continents = map.buildContinentsIndex();
+    const continents = map.continents;
 
     const n = 2;
     const maxUnsuccessfulTries = 15;
@@ -76,8 +82,8 @@ class BaseMapGen {
 
       do {
         const r = this.random.irand(continent.size) * 2;
-        const x = continent.index[r + 0];
-        const y = continent.index[r + 1];
+        const x = continent.coords[r + 0];
+        const y = continent.coords[r + 1];
 
         const tile = map.getTile(x, y);
         if (tile.id !== TerrainType.Ocean && this.isIdealForRiverPlacement(x, y, n))
@@ -105,16 +111,28 @@ class BaseMapGen {
       const dx = Sides[i].x;
       const dy = Sides[i].y;
 
-      var px = x + dx;
-      var py = y + dy;
+      var ox = x;
+      var oy = y;
 
-      for (var j = 0; j < n; j++, px += dx, py += dy) {
-        tile = map.getTile(px, py);
+      var px = map.normX(x + dx);
+      var py = map.normY(y + dy);
+
+      for (var j = 0; j < n; j++) {
+        // Too close to the end of the map.
+        if (ox === px && oy === py) return false;
+
+        tile = map.getTileSafe(px, py);
         if (tile.id === TerrainType.Ocean || (tile.modifiers & TerrainModifier.kRiver) !== 0) {
           // Not an ideal place if it's right next to sea.
           if (j === 0) return false;
           break;
         }
+
+        ox = px;
+        oy = py;
+
+        px = map.normX(px + dx);
+        py = map.normY(py + dy);
       }
 
       full += Number(j === n);
@@ -140,10 +158,10 @@ class BaseMapGen {
       const tile = map.getTile(x, y);
 
       // Check if we are near ocean and stop in such case.
-      const top    = map.getTile(x, y - 1);
-      const left   = map.getTile(x - 1, y);
-      const bottom = map.getTile(x, y + 1);
-      const right  = map.getTile(x + 1, y);
+      const top    = map.getTileSafe(x, y - 1);
+      const left   = map.getTileSafe(x - 1, y);
+      const bottom = map.getTileSafe(x, y + 1);
+      const right  = map.getTileSafe(x + 1, y);
 
       if (top   .id === TerrainType.Ocean || left .id === TerrainType.Ocean ||
           bottom.id === TerrainType.Ocean || right.id === TerrainType.Ocean) {
@@ -163,14 +181,15 @@ class BaseMapGen {
       // Move in random direction. However, if the move would terminate the
       // river (it's a tile near ocean) try to find some other tile instead.
       dir = (dir + this.random.irand(3) - 1) & 3;
-      if (this.willTerminateRiver(x + Sides[dir].x, y + Sides[dir].y)) {
+
+      if (this.willTerminateRiver(x, y, Sides[dir].x, Sides[dir].y)) {
         const probability = size <  5 ? 1.00 :
-                            size < 10 ? 0.8  :
-                            size < 20 ? 0.5  : 0.2;
+                            size < 10 ? 0.80 :
+                            size < 20 ? 0.50 : 0.2;
         if (this.random.drand() < probability) {
           for (var i = 0; i < Sides.length; i++) {
             const alt = (dir + i) & 3;
-            if (!this.willTerminateRiver(x + Sides[alt].x, y + Sides[alt].y)) {
+            if (!this.willTerminateRiver(x, y, Sides[alt].x, Sides[alt].y)) {
               dir = alt;
               break;
             }
@@ -185,18 +204,24 @@ class BaseMapGen {
         size++;
       }
 
-      x = GameUtils.repeat(x + Sides[dir].x, w);
-      y = GameUtils.repeat(y + Sides[dir].y, h);
+      x = map.normX(x + Sides[dir].x);
+      y = map.normY(y + Sides[dir].y);
     }
   }
 
-  willTerminateRiver(x, y) {
+  willTerminateRiver(rx, ry, dx, dy) {
     const map = this.map;
+
+    const x = map.normX(rx, dx);
+    const y = map.normY(ry, dy);
+
+    if (x === rx && y === ry)
+      return true;
 
     for (var i = 0; i < Sides.length; i++) {
       const px = x + Sides[i].x;
       const py = y + Sides[i].y;
-      const tile = map.getTile(px, py);
+      const tile = map.getTileSafe(px, py);
 
       if (tile.id === TerrainType.Ocean || (tile.modifiers & TerrainModifier.kRiver) !== 0)
         return true;
@@ -213,15 +238,34 @@ class BaseMapGen {
     const w = map.w;
     const h = map.h;
 
+    const mid = Math.floor(h / 2);
+
     for (var y = 0; y < h; y++) {
+      const distanceFromPole = Math.min(y, h - 1 - y);
+      const distanceFromMid  = Math.abs(y - mid);
+
       for (var x = 0; x < w; x++) {
         const tile = map.tiles[y * w + x];
         if (this.canChangeTerrain(tile)) {
-          if (this.random.drand() < 0.1) {
-            if (this.random.drand() < 0.5)
-              this.placeTerrain(x, y, TerrainType.Plains, this.random.irand(8) + 3);
-            else
-              this.placeTerrain(x, y, TerrainType.Desert, this.random.irand(6) + 2);
+          if (this.random.drand() < 0.2) {
+            const r = this.random.drand();
+
+            if (distanceFromPole < 8) {
+              if (r < 0.4)
+                this.placeTerrain(x, y, TerrainType.Arctic, this.random.irand(3) + 3);
+            }
+            else if (distanceFromMid < 6) {
+              if (r < 0.7)
+                this.placeTerrain(x, y, TerrainType.Desert, this.random.irand(9) + 2);
+              else
+                this.placeTerrain(x, y, TerrainType.Plains, this.random.irand(9) + 2);
+            }
+            else {
+              if (r < 0.7)
+                this.placeTerrain(x, y, TerrainType.Plains, this.random.irand(9) + 3);
+              else
+                this.placeTerrain(x, y, TerrainType.Jungle, this.random.irand(8) + 4);
+            }
           }
         }
       }
@@ -235,14 +279,12 @@ class BaseMapGen {
 
     var i = 0;
     for (;;) {
-      const tile = map.getTile(x, y);
-
-      tile.id = id;
+      map.setTileId(x, y, id);
       if (++i >= numIterations) return;
 
       var dir = this.random.irand(4);
       for (var j = 0; j < 4; j++) {
-        if (this.canChangeTerrain(map.getTile(x + Sides[dir].x, y + Sides[dir].y)))
+        if (this.canChangeTerrain(map.getTileSafe(x + Sides[dir].x, y + Sides[dir].y)))
           break;
         dir = (dir + 1) & 3;
       }
@@ -250,13 +292,13 @@ class BaseMapGen {
       // Cannot place anything nearby.
       if (j === 4) return;
 
-      x = GameUtils.repeat(x + Sides[dir].x, w);
-      y = GameUtils.repeat(y + Sides[dir].y, h);
+      x = map.normX(x + Sides[dir].x);
+      y = map.normY(y + Sides[dir].y);
     }
   }
 
   canChangeTerrain(tile) {
-    return tile.id === TerrainType.Grassland && (tile.modifiers & TerrainModifier.kRiver) === 0;
+    return tile.id === TerrainType.Grassland;
   }
 
   /**
@@ -315,7 +357,7 @@ class BaseMapGen {
 
       const tile = tiles[dy * w + dx];
       if (tile.id === onTerrain) {
-        tile.id = toTerrain;
+        map.setTileId(dx, dy, toTerrain);
         changes++;
       }
     }
@@ -326,7 +368,7 @@ class BaseMapGen {
 mapgen.BaseMapGen = BaseMapGen;
 
 // ============================================================================
-// [SimpleMapGen]
+// [mapgen.SimpleMapGen]
 // ============================================================================
 
 /**
@@ -368,7 +410,7 @@ class SimpleMapGen extends BaseMapGen {
     var maxY = h - 4;
 
     if (minY >= maxY)
-      GameError.throw(`SimpleMapGen.generateContinent() - Map '${w}x${h}' too small`);
+      FAILED(`Map '${w}x${h}' is too small`);
 
     var x = this.random.irand(w);
     var y = this.random.irand(maxY - minY) + minY;
