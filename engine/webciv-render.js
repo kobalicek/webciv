@@ -1974,6 +1974,21 @@ class Renderer {
             }
             
             case 3: {
+              if (mTile.preventCity) {
+                drawText(ctx, {
+                  x: dx + tileHalf,
+                  y: dy + tileHalf,
+                  center: true,
+                  fill: "#FFFFFF",
+                  stroke: "#000000",
+                  font: "bold 9px sans",
+                  text: String(mTile.preventCity)
+                });
+              }
+              break;
+            }
+
+            case 4: {
               const terrainInfo = defs.terrains[mTile.id];
               var rposX = 0;
               var rposY = 0;

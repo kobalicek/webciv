@@ -465,7 +465,7 @@ class CivUI {
 
     switch (event.key) {
       case "d":
-        this.renderer.debug = Math.floor((this.renderer.debug + 1) % 4);
+        this.renderer.debug = Math.floor((this.renderer.debug + 1) % 5);
         this.renderer.invalidateAll();
         this.makeDirty();
         break;

@@ -429,9 +429,20 @@ const Brush = (function() {
 
   Brush.City = freeze(Brush.Square3x3.concat(
     POINT(-1,-2), POINT( 0,-2), POINT( 1,-2),
-    POINT(-1, 2), POINT( 0, 2), POINT( 1, 2),
-    POINT(-2,-1), POINT(-2, 0), POINT(-2, 1),
-    POINT( 2,-1), POINT( 2, 0), POINT( 2, 1)
+    POINT(-2,-1), POINT( 2,-1),
+    POINT(-2, 0), POINT( 2, 0),
+    POINT(-2, 1), POINT( 2, 1),
+    POINT(-1, 2), POINT( 0, 2), POINT( 1, 2)
+  ));
+
+  Brush.CityToCity = freeze(Brush.City.concat(
+    POINT(-2,-3), POINT(-1,-3), POINT( 0,-3), POINT( 1,-3), POINT( 2,-3), 
+    POINT(-3,-2), POINT(-2,-2), POINT( 2,-2), POINT( 3,-2),
+    POINT(-3,-1), POINT( 3,-1),
+    POINT(-3, 0), POINT( 3, 0),
+    POINT(-3, 1), POINT( 3, 1),
+    POINT(-3, 2), POINT(-2, 2), POINT( 2, 2), POINT( 3, 2),
+    POINT(-2, 3), POINT(-1, 3), POINT( 0, 3), POINT( 1, 3), POINT( 2, 3)
   ));
 
   Brush.Neighbors = freeze([
@@ -1138,7 +1149,9 @@ class GameTile {
 
     this.city = null;                      // City that occupies this tile.
     this.units = null;                     // Units that occupy this tile (linked list).
+
     this.workedBy = null;                  // City that works this tile.
+    this.preventCity = 0;                  // If non-zero city cannot be built here.
   }
 }
 webciv.GameTile = GameTile;
@@ -1297,10 +1310,30 @@ class GamePlayer extends Observable {
   }
 
   assignCity(city) {
+    const cx = city.x;
+    const cy = city.y;
+
+    const map = this.game.map;
+
+    var B = Brush.CityToCity, i;
+    for (var i = 0; i < B.length; i++) {
+      const tile = map.getTileSafe(cx + B[i].x, cy + B[i].y);
+      tile.preventCity++;
+    }
+
     this.cities.push(city);
   }
 
   removeCity(city) {
+    const cx = city.x;
+    const cy = city.y;
+
+    var B = Brush.CityToCity, i;
+    for (var i = 0; i < B.length; i++) {
+      const tile = map.getTileSafe(cx + B[i].x, cy + B[i].y);
+      tile.preventCity--;
+    }
+
     this.cities.splice(this.cities.indexOf(city), 1);
   }
 
@@ -2096,7 +2129,6 @@ class Game extends Observable {
 
       const city = this.createCity({
         player: player,
-        size: 1,
         x: locations[i].x,
         y: locations[i].y
       });
@@ -2250,9 +2282,9 @@ class Game extends Observable {
     player.assignCity(city);
 
     // TODO: Remove, temporary.
-    const Pos = Brush.City;
-    for (var i = 0; i < Pos.length; i++) {
-      const tile = this.map.getTileSafe(info.x + Pos[i].x, info.y + Pos[i].y);
+    var B, i;
+    for (B = Brush.City, i = 0; i < B.length; i++) {
+      const tile = this.map.getTileSafe(info.x + B[i].x, info.y + B[i].y);
       tile.territory = player.slot;
     }
 
@@ -2268,6 +2300,29 @@ class Game extends Observable {
 
     this.cities[slot] = null;
     city.deleted = true;
+  }
+
+  buildCity(unit) {
+    const map = this.map;
+
+    const cx = unit.x;
+    const cy = unit.y;
+    const tile = map.getTile(cx, cy);
+
+    if (tile.preventCity > 0)
+      return null;
+    
+    if (tile.category !== TerrainCategory.Land)
+      return null;
+    
+    const city = this.createCity({
+      player: unit.player,
+      x: cx,
+      y: cy
+    });
+
+    this.destroyUnit(unit);
+    return city;
   }
 
   endOfTurn() {

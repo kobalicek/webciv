@@ -62,39 +62,49 @@ class SimpleAI extends BaseAI {
 
   onTurn() {
     const game = this.game;
+    const defs = game.defs;
     const map = this.map;
     const player = this.player;
 
     const units = player.units;
     const possible = [];
 
-    for (var i = 0; i < units.length; i++) {
+    var i = 0;
+    while (i < units.length) {
       const unit = units[i];
       const x = unit.x;
       const y = unit.y;
 
       const tile = map.getTile(unit.x, unit.y);
       possible.length = 0;
-     
-      for (var n = 0; n < Neighbors.length; n++) {
-        const nx = map.normX(unit.x + Neighbors[n].x);
-        const ny = map.normX(unit.y + Neighbors[n].y);
 
-        // Clipped coordinate.
-        if (x === nx && y === ny)
-          continue;
-        
-        const nTile = map.getTile(nx, ny);
-        if (nTile.category === TC_Land)
-          possible.push(nTile);
+      if (unit.id === defs.units.byName("Settlers").id && tile.preventCity === 0) {
+        game.buildCity(unit);
+      }
+      else {
+        for (var n = 0; n < Neighbors.length; n++) {
+          const nx = map.normX(unit.x + Neighbors[n].x);
+          const ny = map.normX(unit.y + Neighbors[n].y);
+
+          // Clipped coordinate.
+          if (x === nx && y === ny)
+            continue;
+          
+          const nTile = map.getTile(nx, ny);
+          if (nTile.category === TC_Land)
+            possible.push(nTile);
+        }
+
+        if (possible.length) {
+          const n = this.game.random.irand(possible.length);
+          const nTile = possible[n];
+
+          this.map.moveUnit(unit, nTile.x, nTile.y);
+        }
       }
 
-      if (possible.length) {
-        const n = this.game.random.irand(possible.length);
-        const nTile = possible[n];
-
-        this.map.moveUnit(unit, nTile.x, nTile.y);
-      }
+      if (!unit.deleted)
+        i++;
     }
 
     game.endOfTurn();
