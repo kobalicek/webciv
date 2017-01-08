@@ -10,11 +10,17 @@ const FAILED = core.FAILED;
 
 const GameUtils = core.GameUtils;
 const Random = core.Random;
+
 const Brush = core.Brush;
 const Sides = Brush.Sides;
+const Neighbors = Brush.Neighbors;
 
 const TerrainType = core.TerrainType;
+const TerrainCategory = core.TerrainCategory;
 const TerrainModifier = core.TerrainModifier;
+
+const TC_Land = TerrainCategory.Land;
+const TC_Ocean = TerrainCategory.Ocean;
 
 const ai = Object.create(null);
 
@@ -55,13 +61,43 @@ class SimpleAI extends BaseAI {
   }
 
   onTurn() {
+    const game = this.game;
+    const map = this.map;
     const player = this.player;
-    var units = player.units;
+
+    const units = player.units;
+    const possible = [];
 
     for (var i = 0; i < units.length; i++) {
       const unit = units[i];
-      this.map.moveUnit(unit, unit.x + 1, unit.y);
+      const x = unit.x;
+      const y = unit.y;
+
+      const tile = map.getTile(unit.x, unit.y);
+      possible.length = 0;
+     
+      for (var n = 0; n < Neighbors.length; n++) {
+        const nx = map.normX(unit.x + Neighbors[n].x);
+        const ny = map.normX(unit.y + Neighbors[n].y);
+
+        // Clipped coordinate.
+        if (x === nx && y === ny)
+          continue;
+        
+        const nTile = map.getTile(nx, ny);
+        if (nTile.category === TC_Land)
+          possible.push(nTile);
+      }
+
+      if (possible.length) {
+        const n = this.game.random.irand(possible.length);
+        const nTile = possible[n];
+
+        this.map.moveUnit(unit, nTile.x, nTile.y);
+      }
     }
+
+    game.endOfTurn();
   }
 }
 ai.SimpleAI = SimpleAI;

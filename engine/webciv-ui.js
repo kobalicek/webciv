@@ -60,7 +60,7 @@ class CivUI {
     this.hoverTile  = { x: -1, y: -1 };
 
     this.mouseScroll = {
-      active: false,
+      active: "",
       worldX: -1,
       worldY: -1,
       initialX: -1,
@@ -77,6 +77,7 @@ class CivUI {
     this.onMouseUp      = this.onMouseUp.bind(this);
     this.onMouseMove    = this.onMouseMove.bind(this);
     this.onClick        = this.onClick.bind(this);
+    this.onTouch        = this.onTouch.bind(this);
     this.onKeyDown      = this.onKeyDown.bind(this);
     this.onKeyUp        = this.onKeyUp.bind(this);
     this.onRender       = this.onRender.bind(this);
@@ -237,12 +238,16 @@ class CivUI {
 
     const container = renderer.container;
     container.addEventListener("contextmenu", this.onContextMenu, true);
-    container.addEventListener("mouseenter", this.onMouseEnter, true);
-    container.addEventListener("mouseleave", this.onMouseLeave, true);
+    container.addEventListener("mouseenter" , this.onMouseEnter, true);
+    container.addEventListener("mouseleave" , this.onMouseLeave, true);
+    container.addEventListener("mousedown"  , this.onMouseDown, false);
+    container.addEventListener("mousemove"  , this.onMouseMove, true);
+    container.addEventListener("click"      , this.onClick, true);
 
-    container.addEventListener("mousedown", this.onMouseDown, false);
-    container.addEventListener("mousemove", this.onMouseMove, true);
-    container.addEventListener("click", this.onClick, true);
+    container.addEventListener("touchstart" , this.onTouch, false);
+    container.addEventListener("touchend"   , this.onTouch, false);
+    container.addEventListener("touchcancel", this.onTouch, false);
+    container.addEventListener("touchmove"  , this.onTouch, false);
 
     this.updateCanvasSize();
     UIHacks.init();
@@ -260,12 +265,16 @@ class CivUI {
     window.removeEventListener("keyup", this.onKeyUp, true);
 
     container.removeEventListener("contextmenu", this.onContextMenu, true);
-    container.removeEventListener("mouseenter", this.onMouseEnter, true);
-    container.removeEventListener("mouseleave", this.onMouseLeave, true);
+    container.removeEventListener("mouseenter" , this.onMouseEnter, true);
+    container.removeEventListener("mouseleave" , this.onMouseLeave, true);
+    container.removeEventListener("mousedown"  , this.onMouseDown, false);
+    container.removeEventListener("mousemove"  , this.onMouseMove, true);
+    container.removeEventListener("click"      , this.onClick, true);
 
-    container.removeEventListener("mousedown", this.onMouseDown, false);
-    container.removeEventListener("mousemove", this.onMouseMove, true);
-    container.removeEventListener("click", this.onClick, true);
+    container.removeEventListener("touchstart" , this.onTouch, false);
+    container.removeEventListener("touchend"   , this.onTouch, false);
+    container.removeEventListener("touchcancel", this.onTouch, false);
+    container.removeEventListener("touchmove"  , this.onTouch, false);
 
     UIHacks.free();
   }
@@ -315,37 +324,39 @@ class CivUI {
   }
 
   onMouseDown(event) {
-    // Prevent default must be called before capturing the mouse (if capturing).
-    event.preventDefault();
-    event.stopPropagation();
-
     if (event.button === 0) {
       // Scrolling.
       const scroll = this.mouseScroll;
-
-      scroll.active = true;
-      scroll.worldX = this.game.renderer.worldX;
-      scroll.worldY = this.game.renderer.worldY;
-      scroll.initialX = event.screenX;
-      scroll.initialY = event.screenY;
+      if (!scroll.active) {
+        scroll.active = "mouse";
+        scroll.worldX = this.game.renderer.worldX;
+        scroll.worldY = this.game.renderer.worldY;
+        scroll.initialX = event.screenX;
+        scroll.initialY = event.screenY;
+      }
+      // Prevent default must be called before capturing the mouse (if capturing).
+      event.preventDefault();
+      event.stopPropagation();
 
       this.captureMouse();
     }
   }
 
   onMouseUp(event) {
-    // Prevent default must be called before releasing the mouse.
-    event.preventDefault();
-    event.stopPropagation();
-
     if (event.button === 0) {
       const scroll = this.mouseScroll;
 
-      scroll.active = false;
-      scroll.worldX = -1;
-      scroll.worldY = -1;
-      scroll.initialX = -1;
-      scroll.initialX = -1;
+      if (scroll.active === "mouse") {
+        scroll.active = "";
+        scroll.worldX = -1;
+        scroll.worldY = -1;
+        scroll.initialX = -1;
+        scroll.initialX = -1;
+      }
+
+      // Prevent default must be called before releasing the mouse.
+      event.preventDefault();
+      event.stopPropagation();
 
       this.releaseMouse();
     }
@@ -355,12 +366,12 @@ class CivUI {
     const game = this.game;
     const scroll = this.mouseScroll;
 
-    if (scroll.active) {
+    if (scroll.active === "mouse") {
       // Mouse scroll.
       const renderer = game.renderer;
 
-      const dx = event.screenX - scroll.initialX;
-      const dy = event.screenY - scroll.initialY;
+      const dx = Math.floor(event.screenX - scroll.initialX);
+      const dy = Math.floor(event.screenY - scroll.initialY);
 
       const wx = GameUtils.repeat(scroll.worldX - dx, renderer.worldW);
       const wy = GameUtils.repeat(scroll.worldY - dy, renderer.worldH);
@@ -388,11 +399,68 @@ class CivUI {
   }
 
   // --------------------------------------------------------------------------
+  // [OnTouch...]
+  // --------------------------------------------------------------------------
+
+  onTouch(event) {
+    this.game.log(event);
+
+    //if (event.touches.length > 1 || (event.type == "touchend" && event.touches.length > 0))
+    //  return;
+
+    const touch = event.changedTouches ? event.changedTouches[0] : null;
+    const scroll = this.mouseScroll;
+    const renderer = this.game.renderer;
+
+    switch (event.type) {
+      case "touchstart":
+        if (!scroll.active) {
+          scroll.active = "touch";
+          scroll.worldX = renderer.worldX;
+          scroll.worldY = renderer.worldY;
+          scroll.initialX = touch.clientX;
+          scroll.initialY = touch.clientY;
+          
+          event.preventDefault();
+        }
+        break;
+
+      case "touchmove":
+        if (scroll.active === "touch") {
+          const dx = Math.floor(touch.clientX - scroll.initialX);
+          const dy = Math.floor(touch.clientY - scroll.initialY);
+
+          const wx = GameUtils.repeat(scroll.worldX - dx, renderer.worldW);
+          const wy = GameUtils.repeat(scroll.worldY - dy, renderer.worldH);
+
+          renderer.worldX = wx;
+          renderer.worldY = wy;
+
+          this.makeDirty();
+          event.preventDefault();
+        }
+        break;
+
+      case "touchend":
+        if (scroll.active === "touch") {
+          scroll.active = "";
+          scroll.worldX = -1;
+          scroll.worldY = -1;
+          scroll.initialX = -1;
+          scroll.initialX = -1;
+
+          event.preventDefault();
+        }
+        break;
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // [OnKey...]
   // --------------------------------------------------------------------------
 
   onKeyDown(event) {
-    console.log(event)
+    this.game.log(event)
     const hoverTile = this.hoverTile;
 
     switch (event.key) {
@@ -447,9 +515,9 @@ class CivUI {
         case "6": tileId = TerrainType.Arctic   ; tileModifiers &= ~TerrainModifier.kIrrigation; break;
 
         case "c":
-          tileModifiers &= ~TerrainModifier.kRoad |
-                            TerrainModifier.kRailroad |
-                            TerrainModifier.kIrrigation;
+          tileModifiers &= ~(TerrainModifier.kRoad |
+                             TerrainModifier.kRailroad |
+                             TerrainModifier.kIrrigation);
           break;
 
         case "r":

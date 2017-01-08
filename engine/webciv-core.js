@@ -1903,6 +1903,7 @@ class Game extends Observable {
 
     this.turnIndex = 0;                  // Game turn (zero indexed).
     this.turnPlayerSlot = 0;             // Currently playing player.
+    this.turnPendingId = null;           //
 
     this.players = [];                   // Game players.
     this.units = [];                     // Game units.
@@ -1917,6 +1918,8 @@ class Game extends Observable {
     this.renderer = null;                // Game renderer.
 
     this.rules = this.createRules();
+
+    this.onTurn = this._onTurn.bind(this);
   }
 
   createRules() {
@@ -2093,13 +2096,10 @@ class Game extends Observable {
 
       const city = this.createCity({
         player: player,
-        size: this.random.irand(12) + 1,
+        size: 1,
         x: locations[i].x,
         y: locations[i].y
       });
-
-      if (this.random.drand() < 0.5)
-        city.addBuilding("City Walls");
     }
   }
 
@@ -2276,8 +2276,9 @@ class Game extends Observable {
       this.turnIndex++;
     }
 
-    const player = this.players[this.turnPlayerSlot];
-    if (player.ai) player.ai.onTurn();
+    if (!this.turnPendingId) {
+      this.turnPendingId = setTimeout(this.onTurn, 0);
+    }
   }
 
   setAssetStore(store) {
@@ -2314,11 +2315,35 @@ class Game extends Observable {
     this.emit("uiDetached");
   }
 
+  log() {
+    console.log.apply(console, arguments);
+    if (this.ui.debugElement) {
+      var s = "";
+      for (var i = 0; i < arguments.length; i++) {
+        var arg = arguments[i];
+        if (typeof arg !== "object")
+          s += String(arg)
+        else
+          s += JSON.stringify(arg) + "\n";
+      }
+      this.ui.debugElement.textContent = s;
+    }
+  }
+
   $findSlot(array) {
     for (var i = 0, len = array.length; i < len; i++)
       if (array[i] === null)
         break;
     return i;
+  }
+
+  _onTurn(self) {
+    this.turnPendingId = null;
+
+    const player = this.players[this.turnPlayerSlot];
+    if (player.ai) {
+      player.ai.onTurn();
+    }
   }
 
   _onUncovered(x, y, player) {

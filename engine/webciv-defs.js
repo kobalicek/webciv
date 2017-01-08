@@ -10,7 +10,11 @@ const core = $core;
 const defs = Object.create(null);
 
 const TerrainType = core.TerrainType;
+const TerrainCategory = core.TerrainCategory;
 const TerrainModifier = core.TerrainModifier;
+
+const TC_Land = TerrainCategory.Land;
+const TC_Ocean = TerrainCategory.Ocean;
 
 // Links Rules:
 //   - Remove all dots
@@ -50,17 +54,17 @@ defs.assets = [
 ];
 
 defs.terrains = [
-  { name: "Desert"             , id: TerrainType.Desert   , category: 1, move: 1, defense:   0, food: 0, production: 1, commerce: 0, asset: "_[Texture.Desert]"    },
-  { name: "Plains"             , id: TerrainType.Plains   , category: 1, move: 1, defense:   0, food: 1, production: 1, commerce: 0, asset: "_[Texture.Plains]"    },
-  { name: "Grassland"          , id: TerrainType.Grassland, category: 1, move: 1, defense:   0, food: 2, production: 1, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Forest"             , id: TerrainType.Forest   , category: 1, move: 1, defense:  50, food: 1, production: 2, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Hills"              , id: TerrainType.Hills    , category: 1, move: 2, defense: 100, food: 1, production: 0, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Mountains"          , id: TerrainType.Mountains, category: 1, move: 3, defense: 200, food: 0, production: 1, commerce: 2, asset: "_[Texture.Grassland]" },
-  { name: "Tundra"             , id: TerrainType.Tundra   , category: 1, move: 1, defense:   0, food: 1, production: 1, commerce: 0, asset: "_[Texture.Tundra]"    },
-  { name: "Arctic"             , id: TerrainType.Arctic   , category: 1, move: 2, defense:   0, food: 0, production: 0, commerce: 0, asset: "_[Texture.Arctic]"    },
-  { name: "Swamp"              , id: TerrainType.Swamp    , category: 1, move: 2, defense:  50, food: 1, production: 0, commerce: 0, asset: "_[Texture.Grassland]" },
-  { name: "Jungle"             , id: TerrainType.Jungle   , category: 1, move: 2, defense:  50, food: 1, production: 0, commerce: 0, asset: "_[Texture.Jungle]"    },
-  { name: "Ocean"              , id: TerrainType.Ocean    , category: 0, move: 1, defense:   0, food: 1, production: 0, commerce: 2, asset: "_[Texture.Ocean]"     }
+  { name: "Desert"             , id: TerrainType.Desert   , category: TC_Land , move: 1, defense:   0, food: 0, production: 1, commerce: 0, asset: "_[Texture.Desert]"    },
+  { name: "Plains"             , id: TerrainType.Plains   , category: TC_Land , move: 1, defense:   0, food: 1, production: 1, commerce: 0, asset: "_[Texture.Plains]"    },
+  { name: "Grassland"          , id: TerrainType.Grassland, category: TC_Land , move: 1, defense:   0, food: 2, production: 1, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Forest"             , id: TerrainType.Forest   , category: TC_Land , move: 1, defense:  50, food: 1, production: 2, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Hills"              , id: TerrainType.Hills    , category: TC_Land , move: 2, defense: 100, food: 1, production: 0, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Mountains"          , id: TerrainType.Mountains, category: TC_Land , move: 3, defense: 200, food: 0, production: 1, commerce: 2, asset: "_[Texture.Grassland]" },
+  { name: "Tundra"             , id: TerrainType.Tundra   , category: TC_Land , move: 1, defense:   0, food: 1, production: 1, commerce: 0, asset: "_[Texture.Tundra]"    },
+  { name: "Arctic"             , id: TerrainType.Arctic   , category: TC_Land , move: 2, defense:   0, food: 0, production: 0, commerce: 0, asset: "_[Texture.Arctic]"    },
+  { name: "Swamp"              , id: TerrainType.Swamp    , category: TC_Land , move: 2, defense:  50, food: 1, production: 0, commerce: 0, asset: "_[Texture.Grassland]" },
+  { name: "Jungle"             , id: TerrainType.Jungle   , category: TC_Land , move: 2, defense:  50, food: 1, production: 0, commerce: 0, asset: "_[Texture.Jungle]"    },
+  { name: "Ocean"              , id: TerrainType.Ocean    , category: TC_Ocean, move: 1, defense:   0, food: 1, production: 0, commerce: 2, asset: "_[Texture.Ocean]"     }
 ];
 
 defs.resources = [
@@ -70,10 +74,15 @@ defs.resources = [
   { name: "Dear"               , food: 1, production: 1, commerce: 0, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  2, assetY: 5 },
   { name: "Furs"               , food: 1, production: 1, commerce: 2, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  3, assetY: 5 },
   { name: "Wheat"              , food: 2, production: 0, commerce: 0, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  4, assetY: 5 },
+  { name: "Tea"                , food: 1, production: 0, commerce: 2, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  4, assetY: 6 },
+  { name: "Almond"             , food: 1, production: 1, commerce: 1, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  5, assetY: 5 },
+  { name: "Coconut"            , food: 1, production: 1, commerce: 1, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  5, assetY: 6 },
   { name: "Bananas"            , food: 2, production: 1, commerce: 1, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  6, assetY: 5 },
   { name: "Coffee"             , food: 0, production: 2, commerce: 2, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  6, assetY: 6 },
   { name: "Wine"               , food: 1, production: 1, commerce: 2, terrain: ["#[Grassland]"]             , onRiver: false, assetX:  7, assetY: 5 },
   { name: "Fruit"              , food: 1, production: 1, commerce: 1, terrain: ["#[Grassland]", "#[Plains]"], onRiver: false, assetX:  7, assetY: 6 },
+  { name: "Tobacco"            , food: 0, production: 1, commerce: 2, terrain: ["#[Plains]"]                , onRiver: false, assetX:  8, assetY: 5 },
+  { name: "Barley"             , food: 0, production: 1, commerce: 2, terrain: ["#[Plains]"]                , onRiver: false, assetX:  8, assetY: 6 },
   { name: "Salt"               , food: 0, production: 1, commerce: 3, terrain: ["#[Grassland]"]             , onRiver: false, assetX:  9, assetY: 5 },
   { name: "Rubber"             , food: 0, production: 2, commerce: 1, terrain: ["#[Jungle]"]                , onRiver: false, assetX:  9, assetY: 6 },
   { name: "Iron"               , food: 0, production: 2, commerce: 0, terrain: ["#[Grassland]"]             , onRiver: false, assetX: 10, assetY: 5 },
@@ -83,7 +92,9 @@ defs.resources = [
   { name: "Silver"             , food: 0, production: 2, commerce: 3, terrain: ["#[Grassland]", "#[Jungle]"], onRiver: false, assetX: 12, assetY: 5 },
   { name: "Gems"               , food: 0, production: 3, commerce: 1, terrain: ["#[Grassland]", "#[Jungle]"], onRiver: false, assetX: 12, assetY: 6 },
   { name: "Aluminium"          , food: 0, production: 2, commerce: 2, terrain: ["#[Grassland]"]             , onRiver: false, assetX: 13, assetY: 5 },
-  { name: "Stones"             , food: 0, production: 3, commerce: 0, terrain: ["#[Desert]"]                , onRiver: false, assetX: 13, assetY: 6 }
+  { name: "Stones"             , food: 0, production: 3, commerce: 0, terrain: ["#[Desert]"]                , onRiver: false, assetX: 13, assetY: 6 },
+  { name: "Amber"              , food: 0, production: 2, commerce: 2, terrain: ["#[Grassland]"]             , onRiver: false, assetX: 14, assetY: 5 },
+  { name: "Sulphur"            , food: 0, production: 2, commerce: 1, terrain: ["#[Grassland]"]             , onRiver: false, assetX: 14, assetY: 6 }
 ];
 
 defs.modifiers = [
