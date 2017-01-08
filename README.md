@@ -15,3 +15,5 @@ This is a work-in-progress "toy" project. Nothing serious at the moment. The gam
 $ node server
 Listening on port 8001
 ```
+
+Demo application is available [here](https://kobalicek.com/webciv)
