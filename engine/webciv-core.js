@@ -1176,6 +1176,8 @@ class GameUnit {
     this.deleted = false;                  // The unit was deleted.
 
     this.id = info.id || 0;                // Unit id, see UnitData.
+    this.moves = 0;                        // Unit moves left (reset each turn).
+
     this.next = null;                      // Next unit on the tile (linked list).
   }
 }
@@ -1301,15 +1303,15 @@ class GamePlayer extends Observable {
       this.ai.onAttach(this);
   }
 
-  assignUnit(unit) {
+  _assignUnit(unit) {
     this.units.push(unit);
   }
 
-  removeUnit(unit) {
+  _removeUnit(unit) {
     this.units.splice(this.units.indexOf(unit), 1);
   }
 
-  assignCity(city) {
+  _assignCity(city) {
     const cx = city.x;
     const cy = city.y;
 
@@ -1324,7 +1326,7 @@ class GamePlayer extends Observable {
     this.cities.push(city);
   }
 
-  removeCity(city) {
+  _removeCity(city) {
     const cx = city.x;
     const cy = city.y;
 
@@ -1830,6 +1832,15 @@ class GameMap {
       this.game.invalidateTile(x, y);
   }
 
+  // Invalidation means that the map-tile itself changed. This means that either
+  //   - Terrain id changed
+  //   - Terrain modifiers changed (like roads, irrigation, river)
+  //   - Terrain territory information changed
+  // 
+  // Renderers may react to a tile-change differently. In most cases one tile
+  // change means to invalidate also all neighboring tiles as the renderer
+  // needs to recalculate them as well (becuase of rendering transitions and
+  // connections like roads and rivers).
   invalidateTile(x, y) {
     if (this.supressNotifications === 0)
       this.game.invalidateTile(x, y);
@@ -1891,9 +1902,12 @@ class GameMap {
       return;
 
     this.removeUnit(unit);
+
     unit.x = x;
     unit.y = y;
+
     this.assignUnit(unit);
+    unit.player.uncoverRect(unit.x - 1, unit.y - 1, 3, 3);
   }
 
   assignCity(city) {
@@ -1936,7 +1950,7 @@ class Game extends Observable {
 
     this.turnIndex = 0;                  // Game turn (zero indexed).
     this.turnPlayerSlot = 0;             // Currently playing player.
-    this.turnPendingId = null;           //
+    this._turnPendingId = null;           //
 
     this.players = [];                   // Game players.
     this.units = [];                     // Game units.
@@ -2115,14 +2129,49 @@ class Game extends Observable {
 
       this.createUnit({
         player: player,
-        type: 0,
+        id: 0,
         x: locations[i].x,
         y: locations[i].y
       });
 
       this.createUnit({
         player: player,
-        type: 0,
+        id: 0,
+        x: locations[i].x,
+        y: locations[i].y
+      });
+
+      this.createUnit({
+        player: player,
+        id: this.defs.units.byName("Militia").id,
+        x: locations[i].x,
+        y: locations[i].y
+      });
+
+      this.createUnit({
+        player: player,
+        id: this.defs.units.byName("Cavalry").id,
+        x: locations[i].x,
+        y: locations[i].y
+      });
+
+      this.createUnit({
+        player: player,
+        id: this.defs.units.byName("Legion").id,
+        x: locations[i].x,
+        y: locations[i].y
+      });
+
+      this.createUnit({
+        player: player,
+        id: this.defs.units.byName("Chariot").id,
+        x: locations[i].x,
+        y: locations[i].y
+      });
+
+      this.createUnit({
+        player: player,
+        id: this.defs.units.byName("Catapult").id,
         x: locations[i].x,
         y: locations[i].y
       });
@@ -2246,7 +2295,7 @@ class Game extends Observable {
     this.units[slot] = unit;
     this.map.assignUnit(unit);
 
-    player.assignUnit(unit);
+    player._assignUnit(unit);
     player.uncoverRect(unit.x - 3, unit.y - 3, 7, 7);
 
     return unit;
@@ -2255,7 +2304,7 @@ class Game extends Observable {
   destroyUnit(unit) {
     const slot = unit.slot;
 
-    unit.player.removeUnit(unit);
+    unit.player._removeUnit(unit);
     this.map.removeUnit(unit);
 
     this.units[slot] = null;
@@ -2276,14 +2325,14 @@ class Game extends Observable {
       city.name = this.generateCityName(player);
 
     this.cities[slot] = city;
-    this.citiesByName[city.name] = city;
+    this.citiesByName.set(city.name, city);
 
     this.map.assignCity(city);
-    player.assignCity(city);
+    player._assignCity(city);
 
     // TODO: Remove, temporary.
     var B, i;
-    for (B = Brush.City, i = 0; i < B.length; i++) {
+    for (B = Brush.Square3x3, i = 0; i < B.length; i++) {
       const tile = this.map.getTileSafe(info.x + B[i].x, info.y + B[i].y);
       tile.territory = player.slot;
     }
@@ -2295,7 +2344,7 @@ class Game extends Observable {
   destroyCity(city) {
     const slot = city.slot;
 
-    city.player.removeCity(city);
+    city.player._removeCity(city);
     this.map.removeCity(city);
 
     this.cities[slot] = null;
@@ -2331,8 +2380,8 @@ class Game extends Observable {
       this.turnIndex++;
     }
 
-    if (!this.turnPendingId) {
-      this.turnPendingId = setTimeout(this.onTurn, 0);
+    if (!this._turnPendingId) {
+      this._turnPendingId = setTimeout(this.onTurn, 0);
     }
   }
 
@@ -2372,7 +2421,8 @@ class Game extends Observable {
 
   log() {
     console.log.apply(console, arguments);
-    if (this.ui.debugElement) {
+
+    if (this.ui && this.ui.debugElement) {
       var s = "";
       for (var i = 0; i < arguments.length; i++) {
         var arg = arguments[i];
@@ -2393,11 +2443,26 @@ class Game extends Observable {
   }
 
   _onTurn(self) {
-    this.turnPendingId = null;
-
     const player = this.players[this.turnPlayerSlot];
+
+    this._turnPendingId = null;
+    this._restoreMoves(player);
+
     if (player.ai) {
       player.ai.onTurn();
+    }
+  }
+
+  // Restore move points of all player units.
+  _restoreMoves(player) {
+    const defs = this.defs;
+    const units = player.units;
+
+    for (var i = 0; i < units.length; i++) {
+      const unit = units[i];
+      const info = defs.units[unit.id];
+
+      unit.moves = info.moves;
     }
   }
 

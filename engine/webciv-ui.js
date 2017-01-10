@@ -460,7 +460,6 @@ class CivUI {
   // --------------------------------------------------------------------------
 
   onKeyDown(event) {
-    this.game.log(event)
     const hoverTile = this.hoverTile;
 
     switch (event.key) {
